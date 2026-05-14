@@ -1,0 +1,9 @@
+{
+    "name": "Unity 28",
+    "title": "Unity 28",
+    "subtitle": "AAC Board",
+    "version": "1",
+    "description": "Unity 28 is a board set designed for users who are transitioning from single-word communication to more complex sentences. It features a core vocabulary of 28 words, including pronouns, verbs, and descriptors, allowing users to express a wide range of ideas with a small set of symbols. The board is organized in a way that promotes sentence construction and encourages the use of core words in combination with other symbols.",
+    "author": "PLC",
+    "icon": "./u28.svg"
+}
