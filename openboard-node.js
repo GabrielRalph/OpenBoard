@@ -1,39 +1,61 @@
-import { unzip, zip } from './zip/browser.js';
+import { unzip, zip, zipSync } from 'fflate';
+import fs from 'fs';
+import https from 'https';
+import http from 'http';
 
-async function loadFile(url, type = "text", onprogress = () => {}) {
+export async function loadFile(url, type = "text", onprogress = () => {}) {
     if (!(onprogress instanceof Function)) {
         onprogress = () => {};
     }
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", url);
-        xhr.responseType = type === "text" ? "text" : "arraybuffer";
-        onprogress(0);
-        xhr.onprogress = (e) => {
-            if (e.lengthComputable) {
-                const percent = e.loaded / e.total;
-                onprogress(percent);
-            }
-        };
-        xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                let result = xhr.response;
-                if (type === "json") {
-                    try {
-                        result = JSON.parse(result);
-                    } catch (e) {
-                        reject(new Error(`Failed to parse JSON from ${url}: ${e.message}`));
-                        return;
-                    }
-                }
+
+    // Local file path
+    const isUrl = /^https?:\/\//i.test(url);
+    if (!isUrl) {
+        return new Promise((resolve, reject) => {
+            onprogress(0);
+            fs.readFile(url, (err, data) => {
+                if (err) return reject(new Error(`Failed to load file from ${url}: ${err.message}`));
                 onprogress(1);
-                resolve(result);
-            } else {
-                reject(new Error(`Failed to load file from ${url}: ${xhr.status} ${xhr.statusText}`));
+                if (type === "arraybuffer") return resolve(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+                const text = data.toString('utf8');
+                if (type === "json") {
+                    try { resolve(JSON.parse(text)); } catch (e) { reject(new Error(`Failed to parse JSON from ${url}: ${e.message}`)); }
+                } else {
+                    resolve(text);
+                }
+            });
+        });
+    }
+
+    // HTTP/HTTPS URL
+    return new Promise((resolve, reject) => {
+        const transport = url.startsWith('https') ? https : http;
+        onprogress(0);
+        transport.get(url, (res) => {
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+                return reject(new Error(`Failed to load file from ${url}: ${res.statusCode}`));
             }
-        };
-        xhr.onerror = () => reject(new Error(`Network error while loading file from ${url}`));
-        xhr.send();
+            const total = parseInt(res.headers['content-length'] || '0', 10);
+            let loaded = 0;
+            const chunks = [];
+            res.on('data', (chunk) => {
+                chunks.push(chunk);
+                loaded += chunk.length;
+                if (total) onprogress(loaded / total);
+            });
+            res.on('end', () => {
+                onprogress(1);
+                const buf = Buffer.concat(chunks);
+                if (type === "arraybuffer") return resolve(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+                const text = buf.toString('utf8');
+                if (type === "json") {
+                    try { resolve(JSON.parse(text)); } catch (e) { reject(new Error(`Failed to parse JSON from ${url}: ${e.message}`)); }
+                } else {
+                    resolve(text);
+                }
+            });
+            res.on('error', (e) => reject(new Error(`Network error while loading file from ${url}: ${e.message}`)));
+        }).on('error', (e) => reject(new Error(`Network error while loading file from ${url}: ${e.message}`)));
     });
 }
 
@@ -57,13 +79,9 @@ class DataClass {
                         instance[key] = argsObject[key];
                     }
                 } else if (instance[key] === undefined) {
-                    throw new Error(`${this.constructor.name}: Missing required property: ${key}`);
+                    throw new Error(`${this.name}: Missing required property: ${key}`);
                 }
             }
-        }
-
-        if ("validate" in instance && instance.validate instanceof Function) {
-            instance.validate();
         }
         return instance;
     }
@@ -94,6 +112,7 @@ class OpenBoardObject extends DataClass {
  * property on the OB button object.
  */
 class OBLoadBoard extends OpenBoardObject {
+    id = null;
 
     /** @type {?string} */
     name = null;        
@@ -200,17 +219,6 @@ class OBAction {
 
 
 class OBButton extends OpenBoardObject {
-
-    validate() {
-        if (Array.isArray(this.actions) && this.actions.length === 0 && this.load_board == null) {
-            let {utterance} = this;
-            if (typeof utterance === "string") {
-                this.actions = [new OBAction(utterance.length > 1 ? `&${utterance}` : `+${utterance}`)];
-            }
-        }
-    }
-
-    
     /** 
      * The text label to display on the button.
      * @type {?string} */
@@ -568,6 +576,22 @@ class OBBoardManager extends DataClass {
         return this.make({ manifest, boards });
     }
 
+
+    saveOBZ(filename) {
+        const enc = new TextEncoder();
+        const manifest = enc.encode(JSON.stringify(this.manifest));
+        const files = {
+            "manifest.json": manifest,
+            ...Object.fromEntries(Object.entries(this.boards).map(([k, v]) => [
+                this.manifest.paths.boards[k],
+                enc.encode(JSON.stringify(v))
+            ]))
+        };
+        const zipped = zipSync(files);
+        fs.writeFileSync(filename, Buffer.from(zipped));
+    }
+
+
     /**
      * Loads a board set from a OBZ (zip) file URL, where the manifest.json file
      * is located at the root of a folder for which board files are located 
@@ -580,6 +604,14 @@ class OBBoardManager extends DataClass {
             onprogress = () => {};
         }
         const arrayBuffer = await loadFile(url, "arraybuffer", (p) => onprogress(p * 0.95));
+        const manager = await this.parseZippedBuffer(arrayBuffer, (p) => onprogress(0.95 + p * 0.05));
+        return manager;
+    }
+
+    static async parseZippedBuffer(arrayBuffer, onprogress = () => {}) {
+        if (!(onprogress instanceof Function)) {
+            onprogress = () => {};
+        }
         const files = await new Promise((resolve, reject) => {
             unzip(new Uint8Array(arrayBuffer), (err, zipped) => {
                 if (err) {
@@ -588,7 +620,7 @@ class OBBoardManager extends DataClass {
                 resolve(zipped);
             });
         });
-        onprogress(0.99);
+        onprogress(0.5);
         const filePaths = Object.keys(files).filter(path => 
             path.endsWith("manifest.json")
             && !path.includes("../") 
@@ -616,7 +648,7 @@ class OBBoardManager extends DataClass {
                 }
             })
         ));
-
+        onprogress(1);
         return this.make({ manifest, boards });
     }
 

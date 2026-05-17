@@ -61,18 +61,24 @@ function colorGenerator(button) {
 
     if (typeof text === "string") {
         styles["--text"] = text;
-    }
+    } 
 
     if (typeof bg === "string") {
         styles["--main"] = bg;
 
         let match = bg.match(/rgba?\((\d+), ?(\d+), ?(\d+)(?:, ?([\d.]+))?\)/);
-    
+        
         if (match) {
             let r = parseInt(match[1]);
             let g = parseInt(match[2]);
             let b = parseInt(match[3]);
             let [h, s, l] = rgbToHsl(r, g, b);
+
+            let L = 0.2126*r + 0.7152*g + 0.0722*b;
+
+            if (typeof text !== "string") {
+                styles["--text"] = L > 128 ? "black" : "white";
+            }
 
             styles["--main-hover"] = `hsl(${h}, ${s * 1.2}%, ${l * 0.9}%)`;
             styles["--main-active"] = `hsl(${h}, ${s * 1.4}%, ${l * 0.8}%)`;
@@ -198,7 +204,7 @@ class AACBoard extends ShadowElement {
         this.#backspaceButton = this.#rootGrid.addGridIcon({
             symbol: "leftArrow",
             type: "action",
-            // events: {"access-click": () => this.gotoBoard(this.#history[this.#history.length - 2])}
+            events: {"access-click": (e) => this.#ACTION_SET.delete_word.call(this, e)}
         });
         this.#textArea = this.#rootGrid.createChild(AccessTextArea, {
             placeholder: "Output will appear here",
@@ -216,6 +222,7 @@ class AACBoard extends ShadowElement {
 
     #onButtonClick(e) {
         const {element, button} = e;
+        console.log("BUTTON CLICKED:", button);
         const {actions, load_board} = button;
         if (load_board) {
             const id = load_board.id;
@@ -273,6 +280,19 @@ class AACBoard extends ShadowElement {
         },
         clear(e) {
             this.#textArea.clear();
+            this.#onStateChange(e, "text", "caretPosition");
+        },
+        delete_word(e) {
+            let valueUpToCaret = this.#textArea.valueUpToCaret.trimEnd();
+            let valueAfterCaret = this.#textArea.valueAfterCaret.trimStart();
+            let lastSpaceIndex = valueUpToCaret.lastIndexOf(" ");
+            if (lastSpaceIndex === -1) {
+                this.#textArea.value = valueAfterCaret;
+                this.#textArea.caretPosition = 0;
+            } else {
+                this.#textArea.value = valueUpToCaret.slice(0, lastSpaceIndex + 1) + valueAfterCaret;
+                this.#textArea.caretPosition = lastSpaceIndex + 1;
+            }
             this.#onStateChange(e, "text", "caretPosition");
         },
         hold_page(e) {

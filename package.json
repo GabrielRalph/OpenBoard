@@ -2,6 +2,7 @@
   "scripts": {
     "build": "rollup -c"
   },
+  "type": "module",
   "dependencies": {
     "@rollup/plugin-terser": "^1.0.0",
     "fflate": "^0.8.2",
