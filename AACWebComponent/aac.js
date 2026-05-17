@@ -244,9 +244,9 @@ class AACBoard extends ShadowElement {
             const {columns, rows} = board.grid;
             this.#rootGrid.innerHTML = "";
             this.#rootGrid.size = [rows+1, columns];
-            this.#rootGrid.add(this.#closeButton, 0, 0);
+            this.#rootGrid.add(this.#closeButton, 0, 1);
             this.#rootGrid.add(this.#backspaceButton, 0, columns-1);
-            this.#rootGrid.add(this.#textArea, 0, [1, columns-2]);
+            this.#rootGrid.add(this.#textArea, 0, [2, columns-2]);
             let grid;
             if (board.id in this.#boardCache) {
                 grid = this.#boardCache[board.id];
