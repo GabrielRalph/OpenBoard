@@ -8,7 +8,7 @@ grid-layout {
 access-textarea {
     --caret-color: #9b0000;
     pointer-events: none;
-    font-size: 1.3em;
+    font-size: 1.6em;
 }
 aac-board-contents grid-layout {
     padding: 2px;
