@@ -19,10 +19,9 @@ aac-board-contents grid-layout {
     --shadow-color: #565048cf
 }
 
-
-aac-board-contents[squidly] *[hide-for-squidly] {
+/* aac-board-contents[squidly] *[hide-for-squidly] {
     display: none !important;
-}
+} */
 
 access-button.grid-icon .content {
     flex-direction: column-reverse !important;
