@@ -1057,6 +1057,13 @@ async function loadUtterances(texts) {
     return Text2SpeechManager.loadUtterances(texts);
 }
 
+function isAccessEvent(event) {
+    return event != null 
+            && typeof event === "object" 
+            && Array.isArray(event.eventPromises) 
+            && "initialEvent" in event
+}
+
 class AccessEvent extends Event {
     /** @type {?("click"|"dwell"|"switch")} */
     clickMode = null;
@@ -1080,8 +1087,8 @@ class AccessEvent extends Event {
         }
         super(eventName, Config);
         let oldEvent = this;
-        if (mode instanceof AccessEvent) {
-            if (mode.initialEvent instanceof AccessEvent) {
+        if (isAccessEvent(mode)) {
+            if (mode.initialEvent != null && Array.isArray(mode.initialEvent.eventPromises)) {
                 mode = mode.initialEvent;
             }
             oldEvent = mode;
@@ -1179,7 +1186,18 @@ class AccessButtonsLookupTable {
                 newGroups[name] = [...group];
             }
         }
-        return newGroups;
+
+        let newGroupsSorted = {};
+        //Sort keys alphabetically, but keep the order of buttons in each group.
+        Object.keys(newGroups).sort((a, b) => {
+            if (a < b) return -1;
+            if (a > b) return 1;
+            return 0;
+        }).forEach(key => {
+            newGroupsSorted[key] = newGroups[key];
+        });
+            
+        return newGroupsSorted;
     }
 
     getVisibleButtonsInGroup(group) {
@@ -1359,7 +1377,6 @@ class AccessButtonRoot extends HTMLElement {
         return checkClickable(root, proxy, p)
     }
 
-
     activeAnimation(){
         this.toggleAttribute("active", true);
         setTimeout(() => {
@@ -1367,10 +1384,8 @@ class AccessButtonRoot extends HTMLElement {
         }, 200);
     }
 
-
     connectedCallback() {
         ButtonsLookup.add(this);
-        
     }
     
     disconnectedCallback() {
@@ -2483,11 +2498,10 @@ const GRID_ICON_THEMES = {
 /**
  * @typedef {Object} GridIconOptions
  * @property {GridIconType} type - The type of the icon, which determines its appearance. 
- * 
  *                           general type format: [topic-]colorTheme
  *                           see COLOR_THEMES for available color themes.
+ * @property {string} [accessGroup] - The access group for the icon, used for grouping icons together.
  * @property {string} displayValue - The text to display below the icon.
- * 
  * @property {string} [subtitle] - The icon symbol, can be a string or an object with a url.
  * @property {IconSymbol} [symbol] - The icon symbol, see above.
  * @property {boolean} [hidden] - If true, the icon will be hidden.
@@ -2498,7 +2512,7 @@ const GRID_ICON_THEMES = {
 
 
 const CARD_RENDERERS = {
-    BORDER_RADIUS_PERCENTAGE: 0.01,
+    BORDER_RADIUS_PERCENTAGE: 0.015,
     BORDER_SIZE: 4,
 
     plain(size, border = this.BORDER_SIZE) {
@@ -2516,6 +2530,7 @@ const CARD_RENDERERS = {
     },
     
     folder(size, border = this.BORDER_SIZE) {
+        console.log(this.BORDER_SIZE);
         let inSize = size.sub(border);
         let g = Math.min(window.innerWidth, window.innerHeight) * this.BORDER_RADIUS_PERCENTAGE;
         let w = inSize.x;
@@ -2559,6 +2574,7 @@ const CARD_RENDERERS = {
         let card = `M${p8.addV(-0.1)}L${p9}A${rg},0,0,1,${p10}L${p11}A${rg},0,0,1,${p12}L${p0.addV(-0.1)}Z`;
         let outline = `M${p0}L${p1}A${rg},0,0,1,${p2}L${p3}A${rt},0,0,1,${p4}L${p5}A${rt},0,0,0,${p6}L${p7}A${rg},0,0,1,${p8}L${p9}A${rg},0,0,1,${p10}L${p11}A${rg},0,0,1,${p12}Z`;
         return  `
+    
                 <path class = "card" d = "${card}" />
                 <path class = "tab" d = "${tabPath}" />
                 

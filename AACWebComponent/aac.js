@@ -147,8 +147,9 @@ class AACButton extends GridIcon {
     /**
      * @param {string} button_id
      * @param  {OBBoard} board
+     * @param {string} group
      */
-    constructor(button_id, board) {
+    constructor(button_id, board, group) {
         const button = board.getButtonById(button_id);
         const image = board.getImageById(button.image_id);
         const symbol = resolveImagePath(image);
@@ -159,7 +160,7 @@ class AACButton extends GridIcon {
             events: {
                 "access-click": (e) => this.dispatchEvent(new AACClick(e, button, this))
             },
-        });
+        }, group);
         this.styles = colorGenerator(button);
 
         if (!symbol && button.label.length === 1) { 
@@ -198,13 +199,15 @@ class AACBoard extends ShadowElement {
         this.#closeButton = this.#rootGrid.addGridIcon({
             symbol: "home",
             type: "action",
-            events: {"access-click": () => this.gotoBoard(this.#manager.rootBoardID)}
+            events: {"access-click": () => this.gotoBoard(this.#manager.rootBoardID)},
+            accessGroup: "apps"
         });
         this.#closeButton.toggleAttribute("hide-for-squidly", true);
         this.#backspaceButton = this.#rootGrid.addGridIcon({
             symbol: "leftArrow",
             type: "action",
-            events: {"access-click": (e) => this.#ACTION_SET.delete_word.call(this, e)}
+            events: {"access-click": (e) => this.#ACTION_SET.delete_word.call(this, e)},
+            accessGroup: "apps"
         });
         this.#textArea = this.#rootGrid.createChild(AccessTextArea, {
             placeholder: "Output will appear here",
@@ -213,22 +216,30 @@ class AACBoard extends ShadowElement {
     }
 
     #runActions(e, actions, button) {
+        let proms = []
         for (const action of actions) {
             if (action.mode in this.#ACTION_SET) {
-                this.#ACTION_SET[action.mode].call(this, e, action.value);
+                const prom = this.#ACTION_SET[action.mode].call(this, e, action.value);
+                if (prom instanceof Promise) {
+                    proms.push(prom);
+                }
             }
         }
+        return Promise.all(proms);
     }
 
-    #onButtonClick(e) {
+    async #onButtonClick(e) {
+        console.log("+Button click function started", Date.now());
         const {element, button} = e;
-        console.log("BUTTON CLICKED:", button);
         const {actions, load_board} = button;
+        let gotoProm = null;
         if (load_board) {
             const id = load_board.id;
-            this.gotoBoard(id, e);
+            gotoProm = this.gotoBoard(id, e);
         }
-        this.#runActions(e, actions, button);
+        let actionPorm = this.#runActions(e, actions, button);
+        await e.waitFor(Promise.all([gotoProm, actionPorm]));
+        console.log("-Button click function ended", Date.now());
     }
 
     #onStateChange(e, ...changes) {
@@ -238,7 +249,7 @@ class AACBoard extends ShadowElement {
     /**
      * @param  {OBBoard|string} board
      */
-    #setBoard(board) {
+    async #setBoard(board) {
         board = typeof board === "string" ? this.#manager.getBoard(board) : board;
         if (this.#renderedBoardID !== board.id) {
             const {columns, rows} = board.grid;
@@ -252,12 +263,14 @@ class AACBoard extends ShadowElement {
                 grid = this.#boardCache[board.id];
             } else {
                 grid = new GridLayout(rows, columns);
-                class B extends AACButton { constructor(button_id) { super(button_id, board); } }
+                class B extends AACButton { constructor(button_id, group) { super(button_id, board, "aa-"+group); } }
                 grid.addItemInstances(B, board.grid.order)
                 this.#boardCache[board.id] = grid;
             }
             this.#rootGrid.add(grid, [1, rows], [0, columns-1]);
             this.#renderedBoardID = board.id;
+
+            await new Promise(resolve => setTimeout(resolve, 200));
         }
     }
 
@@ -270,13 +283,13 @@ class AACBoard extends ShadowElement {
     
         },
         return(e) {
-            this.gotoBoard(null, e);
+            return this.gotoBoard(null, e);
         },
         home(e) {
-            this.gotoBoard(this.#manager.rootBoardID, e);
+            return this.gotoBoard(this.#manager.rootBoardID, e);
         },
         back(e) {
-            this.gotoBoard(this.#history[this.#history.length - 2], e);
+            return this.gotoBoard(this.#history[this.#history.length - 2], e);
         },
         clear(e) {
             this.#textArea.clear();
@@ -365,14 +378,20 @@ class AACBoard extends ShadowElement {
         this.#onStateChange(new AccessEvent("manager-set"), "history", "holdBoard", "text", "caretPosition");
     }
 
+    /**
+     * @param {string} boardID
+     * @param {Event} e
+     * @return {Promise} Resolves when the board transition is complete
+     */
     gotoBoard(boardID, e) {
+        let transistionPromise = null;
         if (this.#manager) {
             const homeID = this.#manager.rootBoardID;
             if (!(boardID in this.#manager.boards)) {
                 boardID = this.#holdBoard || homeID;
             }
 
-            this.#setBoard(boardID);
+            transistionPromise = this.#setBoard(boardID);
             if (boardID === homeID) {
                 this.#history = [];
                 this.#holdBoard = null;
@@ -389,6 +408,8 @@ class AACBoard extends ShadowElement {
         } else {
             console.warn("No board manager set");
         }
+
+        return transistionPromise;
     }
     
     static get usedStyleSheets() {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unity 28</title>
+    <title>${{name}}</title>
 </head>
 <body>
     <aac-board></aac-board>
@@ -14,14 +14,14 @@
 </body>
 
 <script type = "module">
-    import { setup } from "./index.js";
-    setup("./BoardFiles/U28.obz");
+    import { setup } from "../../index.js";
+    setup("${{url}}");
 </script>
 
 <style>
     body {
         margin: 0;
-        /* font-family: Arial, Helvetica, sans-serif; */
+        font-family: Arial, Helvetica, sans-serif;
         background: #7b766f;
     }
     aac-board {
