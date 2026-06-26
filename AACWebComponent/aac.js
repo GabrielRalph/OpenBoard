@@ -46,73 +46,8 @@ function rgbToHsl(r, g, b) {
   ]
 }
 
-/**
- * @param  {OBButton} button
- */
-function colorGenerator(button) {
-    const bg = button.background_color;
-    const outline = button.outline_color;
-    const text = button.text_color;
-    let styles = {};
 
-    if (typeof outline === "string") {
-        styles["--outline"] = outline;
-    }
 
-    if (typeof text === "string") {
-        styles["--text"] = text;
-    } 
-
-    if (typeof bg === "string") {
-        styles["--main"] = bg;
-
-        let match = bg.match(/rgba?\((\d+), ?(\d+), ?(\d+)(?:, ?([\d.]+))?\)/);
-        
-        if (match) {
-            let r = parseInt(match[1]);
-            let g = parseInt(match[2]);
-            let b = parseInt(match[3]);
-            let [h, s, l] = rgbToHsl(r, g, b);
-
-            let L = 0.2126*r + 0.7152*g + 0.0722*b;
-
-            if (typeof text !== "string") {
-                styles["--text"] = L > 128 ? "black" : "white";
-            }
-
-            styles["--main-hover"] = `hsl(${h}, ${s * 1.2}%, ${l * 0.9}%)`;
-            styles["--main-active"] = `hsl(${h}, ${s * 1.4}%, ${l * 0.8}%)`;
-            styles["--tab-color"] = `hsl(${h}, ${s * 0.8}%, ${l * 0.6}%)`;
-            styles["--tab-hover"] = `hsl(${h}, ${s * 0.8}%, ${l * 0.5}%)`;
-
-            if (!styles["--outline"]) {
-                if (s < 0.05) {
-                    l *= 0.3;
-                }
-                styles["--outline"] = `hsl(${h}, ${s*1.5}%, ${l * 0.5}%)`;
-            }
-
-        }
-        
-    }
-    return styles;
-}
-
-/**
- * @param {OBImage} image
- */
-function resolveImagePath(image) {
-    if (!image) return null;
-
-    if (image.path) {
-        return image.path;
-    } else if (image.url) {
-        return image.url;
-    } else if (image.symbol) {
-        const safe = image.symbol.path.split("/").map(encodeURIComponent).join("/");
-        return "../IconSets/" + safe;
-    }
-}
 
 class AACClick extends AccessEvent {
     constructor(e, button, element) {
@@ -152,7 +87,7 @@ class AACButton extends GridIcon {
     constructor(button_id, board, group) {
         const button = board.getButtonById(button_id);
         const image = board.getImageById(button.image_id);
-        const symbol = resolveImagePath(image);
+        const symbol = image ? image.resolvedURL : null;
         super({
             displayValue: button.label,
             symbol: symbol,
@@ -161,14 +96,95 @@ class AACButton extends GridIcon {
                 "access-click": (e) => this.dispatchEvent(new AACClick(e, button, this))
             },
         }, group);
-        this.styles = colorGenerator(button);
+
+        this.styles = AACButton.colorGenerator(button);
 
         if (!symbol && button.label.length === 1) { 
             this.toggleAttribute("character-button", true);
         }
     }
+
+    /**
+     * @param  {OBButton} button
+     */
+    static colorGenerator(button) {
+        const bg = button.background_color;
+        const outline = button.border_color;
+        const text = button.text_color;
+        let styles = {};
+
+        if (typeof outline === "string") {
+            styles["--outline"] = outline;
+        }
+
+        if (typeof text === "string") {
+            styles["--text"] = text;
+        } 
+
+        if (typeof bg === "string") {
+            styles["--main"] = bg;
+
+            let match = bg.match(/rgba?\((\d+), ?(\d+), ?(\d+)(?:, ?([\d.]+))?\)/);
+            
+            if (match) {
+                let r = parseInt(match[1]);
+                let g = parseInt(match[2]);
+                let b = parseInt(match[3]);
+                let [h, s, l] = rgbToHsl(r, g, b);
+
+                let L = 0.2126*r + 0.7152*g + 0.0722*b;
+
+                if (typeof text !== "string") {
+                    styles["--text"] = L > 128 ? "black" : "white";
+                }
+
+                styles["--main-hover"] = `hsl(${h}, ${s * 1.2}%, ${l * 0.9}%)`;
+                styles["--main-active"] = `hsl(${h}, ${s * 1.4}%, ${l * 0.8}%)`;
+                styles["--tab-color"] = `hsl(${h}, ${s * 0.8}%, ${l * 0.6}%)`;
+                styles["--tab-hover"] = `hsl(${h}, ${s * 0.8}%, ${l * 0.5}%)`;
+
+                if (!styles["--outline"]) {
+                    if (s < 0.05) {
+                        l *= 0.3;
+                    }
+                    styles["--outline"] = `hsl(${h}, ${s*1.5}%, ${l * 0.5}%)`;
+                }
+
+            }
+            
+        }
+        return styles;
+    }
+
 }
 
+class AACGrid extends GridLayout {
+    /**
+     * @param {OBBoard} board
+     */
+    constructor(board) {
+        super(board?.grid?.rows || 1, board?.grid?.columns || 1);
+        this.board = board;
+    }
+
+
+    /**
+     * @param {OBBoard} board
+     */
+    set board(board) { 
+        this.innerHTML = "";
+        if (board) {
+            const {columns, rows} = board.grid;
+            this.size = [rows, columns];
+            class B extends AACButton { 
+                constructor(button_id, group) { super(button_id, board, "aa-"+group); } 
+            }
+            this.addItemInstances(B, board.grid.order)
+        } else {
+            this.size = [1, 1];
+        }
+    }
+}
 
 class AACBoard extends ShadowElement {
     #history = [];
@@ -229,7 +245,6 @@ class AACBoard extends ShadowElement {
     }
 
     async #onButtonClick(e) {
-        console.log("+Button click function started", Date.now());
         const {element, button} = e;
         const {actions, load_board} = button;
         let gotoProm = null;
@@ -239,7 +254,6 @@ class AACBoard extends ShadowElement {
         }
         let actionPorm = this.#runActions(e, actions, button);
         await e.waitFor(Promise.all([gotoProm, actionPorm]));
-        console.log("-Button click function ended", Date.now());
     }
 
     #onStateChange(e, ...changes) {
@@ -262,9 +276,7 @@ class AACBoard extends ShadowElement {
             if (board.id in this.#boardCache) {
                 grid = this.#boardCache[board.id];
             } else {
-                grid = new GridLayout(rows, columns);
-                class B extends AACButton { constructor(button_id, group) { super(button_id, board, "aa-"+group); } }
-                grid.addItemInstances(B, board.grid.order)
+                grid = new AACGrid(board);
                 this.#boardCache[board.id] = grid;
             }
             this.#rootGrid.add(grid, [1, rows], [0, columns-1]);
@@ -421,4 +433,4 @@ class AACBoard extends ShadowElement {
     }
 }
 
-SvgPlus.defineHTMLElement(AACBoard, "aac-board");
+export { AACBoard, AACGrid, AACButton }

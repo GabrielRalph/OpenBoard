@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor</title>
+</head>
+<body>
+    <open-board-editor></open-board-editor>
+</body>
+<style>
+    open-board-editor {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+    }
+</style>
+<script type="module">
+    import { OpenBoardEditor } from "./editor.js";
+    import { SvgPlus } from "../AACWebComponent/utils.js";
+    SvgPlus.defineHTMLElement(OpenBoardEditor);
+</script>
+</html>

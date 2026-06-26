@@ -5,11 +5,13 @@ grid-layout {
     background-color: #7b766f;
     --gap: 2px;
 }
+
 access-textarea {
     --caret-color: #9b0000;
     pointer-events: none;
     font-size: 1.6em;
 }
+
 aac-board-contents grid-layout {
     padding: 2px;
     box-sizing: border-box;
@@ -19,22 +21,22 @@ aac-board-contents grid-layout {
     --shadow-color: #565048cf
 }
 
-/* aac-board-contents[squidly] *[hide-for-squidly] {
-    display: none !important;
-} */
 
 access-button.grid-icon .content {
     flex-direction: column-reverse !important;
     padding: 1vw;
     box-sizing: border-box;
 }
+
 access-button.grid-icon .content .symbol {
     height: 100% !important;
     position: relative;
 }
+
 access-button.grid-icon[card="folder"] .content .display-value {
     padding-top: 1vmin;
 }
+
 access-button.grid-icon .symbol img {
     max-width: unset;
     height: 100%;

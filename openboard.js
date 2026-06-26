@@ -161,7 +161,19 @@ class OBImage extends OpenBoardObject {
      * An optional license for the image.
      * @type {?object}
      *  */   
-    license = null;                 
+    license = null;     
+    
+
+    get resolvedURL() {
+        if (this.path) {
+            return this.path;
+        } else if (this.url) {
+            return this.url;
+        } else if (this.symbol) {
+            const safe = this.symbol.path.split("/").map(encodeURIComponent).join("/");
+            return "../IconSets/" + safe;
+        }
+    }
 }
 
 /**
