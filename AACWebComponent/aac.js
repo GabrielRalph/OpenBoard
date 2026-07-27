@@ -1,4 +1,4 @@
-import { OBBoard, OBButton, OBImage } from "../openboard.js";
+import { OBBoard, OBButton, OBImage } from "../src/Utilities/openboard.js";
 import { AccessEvent, AccessTextArea, GridIcon, GridLayout, ShadowElement, SvgPlus } from "./utils.js";
 
 function relTo(path, base = "https://session.squidly.com.au/main/") {
@@ -46,10 +46,13 @@ function rgbToHsl(r, g, b) {
   ]
 }
 
-
-
-
 class AACClick extends AccessEvent {
+    /** @type {OBButton} */
+    button = null;
+
+    /** @type {AACButton} */
+    element = null
+    
     constructor(e, button, element) {
         super("aac-click", e, {
             bubbles: true,
@@ -78,15 +81,51 @@ class AACInsert extends AccessEvent {
     }
 }
 
+/**
+ * @typedef {HTMLElementEventMap & {
+ *   "aac-click": AACClick
+ * }} AACGridEventMap
+ */
+
+/**
+ * @typedef {HTMLElementEventMap & {
+ *   "aac-click": AACClick,
+ *   "change": AACChange,
+ *   "insert": AACInsert
+ * }} AACBoardEventMap
+ */
+function getColour(colourStr) {
+    if (colourStr === "transparent") {
+        return [0, 0, 0, 0];
+    } else {
+        let match = colourStr.match(/rgba?\((\d+), ?(\d+), ?(\d+)(?:, ?([\d.]+))?\)/);
+        if (match) {
+           return [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])];
+        } else if (colourStr.startsWith("#")) {
+            let hex = colourStr.slice(1);
+            if (hex.length === 3) {
+                hex = hex.split("").map(c => c + c).join("");
+            }
+            let r = parseInt(hex.slice(0, 2), 16);
+            let g = parseInt(hex.slice(2, 4), 16);
+            let b = parseInt(hex.slice(4, 6), 16);
+            return [r, g, b];
+        }
+    }
+    return null;
+}
+
 class AACButton extends GridIcon {
+    #button = null; 
+
     /**
      * @param {string} button_id
      * @param  {OBBoard} board
      * @param {string} group
      */
     constructor(button_id, board, group) {
-        const button = board.getButtonById(button_id);
-        const image = board.getImageById(button.image_id);
+        const button = board.getButtonByID(button_id);
+        const image = board.getImageByID(button.image_id);
         const symbol = image ? image.resolvedURL : null;
         super({
             displayValue: button.label,
@@ -97,12 +136,26 @@ class AACButton extends GridIcon {
             },
         }, group);
 
-        this.styles = AACButton.colorGenerator(button);
 
-        if (!symbol && button.label.length === 1) { 
-            this.toggleAttribute("character-button", true);
+        let fontSize = button.font_size || "medium";
+        if (fontSize !== "medium") {
+            this.setAttribute("font-size", fontSize);
         }
+
+        this.toggleAttribute("bold", button.bold);
+        this.toggleAttribute("italic", button.italic);
+        this.toggleAttribute("label-at-bottom", button.label_at_bottom)
+
+        this.styles = AACButton.colorGenerator(button);
+        this.#button = button;
     }
+
+
+    /** @returns {OBButton} */
+    get button() {
+        return this.#button
+    }
+
 
     /**
      * @param  {OBButton} button
@@ -111,7 +164,7 @@ class AACButton extends GridIcon {
         const bg = button.background_color;
         const outline = button.border_color;
         const text = button.text_color;
-        let styles = {};
+        let styles = { };
 
         if (typeof outline === "string") {
             styles["--outline"] = outline;
@@ -124,12 +177,10 @@ class AACButton extends GridIcon {
         if (typeof bg === "string") {
             styles["--main"] = bg;
 
-            let match = bg.match(/rgba?\((\d+), ?(\d+), ?(\d+)(?:, ?([\d.]+))?\)/);
+            let match = getColour(bg);
             
             if (match) {
-                let r = parseInt(match[1]);
-                let g = parseInt(match[2]);
-                let b = parseInt(match[3]);
+                let [r, g, b] = match;
                 let [h, s, l] = rgbToHsl(r, g, b);
 
                 let L = 0.2126*r + 0.7152*g + 0.0722*b;
@@ -155,17 +206,46 @@ class AACButton extends GridIcon {
         }
         return styles;
     }
-
 }
 
+/**
+ * @fires AACClick
+ */
 class AACGrid extends GridLayout {
     /**
      * @param {OBBoard} board
      */
-    constructor(board) {
-        super(board?.grid?.rows || 1, board?.grid?.columns || 1);
-        this.board = board;
+    constructor() {
+        super(1,1);
     }
+
+    /**
+     * @template {keyof AACGridEventMap} K
+     * @param {K} type
+     * @param {(this: AACGrid, ev: AACGridEventMap[K]) => any} listener
+     * @param {boolean | AddEventListenerOptions} [options]
+     */
+    addEventListener(type, listener, options) {
+        EventTarget.prototype.addEventListener.call(this, type, listener, options);
+    }
+
+
+    /**
+     * @param {OBBoard} board
+     * @returns {new () => AACButton}
+     */
+    getAACButtonClass(board) {
+        class B extends AACButton { 
+            constructor(button_id, group) { super(button_id, board, "aac-"+group); } 
+        }
+        return B;
+    }
+
+    
+    /**
+     * @override
+     */
+    onBoardSet() { }
 
 
     /**
@@ -173,18 +253,22 @@ class AACGrid extends GridLayout {
      */
     set board(board) { 
         this.innerHTML = "";
-        if (board) {
+        if (board instanceof OBBoard) {
             const {columns, rows} = board.grid;
             this.size = [rows, columns];
-            class B extends AACButton { 
-                constructor(button_id, group) { super(button_id, board, "aa-"+group); } 
+            const buttonLocations = board.getButtonLocations();
+            const bClass = this.getAACButtonClass(board);
+            for (let {rowRange, colRange, buttonID} of buttonLocations) {
+                this.add(new bClass(buttonID, rowRange[0]), rowRange, colRange)
             }
-            this.addItemInstances(B, board.grid.order)
         } else {
             this.size = [1, 1];
         }
+        this.onBoardSet();
     }
 }
+
+
 
 class AACBoard extends ShadowElement {
     #history = [];
@@ -229,6 +313,16 @@ class AACBoard extends ShadowElement {
             placeholder: "Output will appear here",
             readonly: true,
         });
+    }
+
+    /**
+     * @template {keyof AACBoardEventMap} K
+     * @param {K} type
+     * @param {(this: AACBoard, ev: AACBoardEventMap[K]) => any} listener
+     * @param {boolean | AddEventListenerOptions} [options]
+     */
+    addEventListener(type, listener, options) {
+        EventTarget.prototype.addEventListener.call(this, type, listener, options);
     }
 
     #runActions(e, actions, button) {
@@ -276,7 +370,8 @@ class AACBoard extends ShadowElement {
             if (board.id in this.#boardCache) {
                 grid = this.#boardCache[board.id];
             } else {
-                grid = new AACGrid(board);
+                grid = new AACGrid();
+                grid.board = board;
                 this.#boardCache[board.id] = grid;
             }
             this.#rootGrid.add(grid, [1, rows], [0, columns-1]);
@@ -433,4 +528,4 @@ class AACBoard extends ShadowElement {
     }
 }
 
-export { AACBoard, AACGrid, AACButton }
+export { AACBoard, AACGrid, AACButton, AACClick, AACChange, AACInsert }

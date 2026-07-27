@@ -1,7 +1,7 @@
-import "./AACWebComponent/aac.js";
-import { AACBoard } from "./AACWebComponent/aac.js";
-import { SvgPlus } from "./AACWebComponent/utils.js";
-import { OBBoardManager } from "./openboard.js";
+import "./src/AACWebComponent/aac.js";
+import { AACBoard } from "./src/AACWebComponent/aac.js";
+import { SvgPlus } from "./src/Utilities/utils.js";
+import { OBBoardManager } from "./src/Utilities/openboard.js";
 
 SvgPlus.defineHTMLElement(AACBoard, "aac-board");
 
@@ -18,6 +18,7 @@ if (!window.SquidlyAPI) {
 
 }
 
+/** @type {AACBoard} */
 const aacBoard = document.querySelector("aac-board");
 aacBoard.root.toggleAttribute("squidly", isSquidly);
 let manager;

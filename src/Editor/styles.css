@@ -1,0 +1,400 @@
+:root,:host {
+    --fill-transparent: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="5" height="5" fill="%23fff" opacity="0.7"/><rect y="5" width="5" height="5" fill="%23fff" opacity=".15"/><rect x="5" width="5" height="5" fill="%23fff" opacity=".15"/><rect x="5" y="5" width="5" height="5" fill="%23fff" opacity="0.7"/></svg>');
+    --up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolyline points='15,70, 50,30, 85,70' stroke='%23FFFA' fill='none' stroke-width='15' /%3E%3C/svg%3E");
+    --down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolyline points='15,30, 50,70, 85,30' stroke='%23FFFA' fill='none' stroke-width='15' /%3E%3C/svg%3E");
+    --c-bg: #636363;
+    --input-color: #00000062;
+    --input-border: 1px solid rgba(255, 255, 255, 0.523);
+    --border-color: #181818;
+    --panel-border: 1px solid var(--border-color);
+    --c-lighter: #5b5a5a;
+    --c-darker: #262625;
+    --c-dark: #424141;
+    --c-light: #4f4f4e;
+    --c-text: #fffb;
+}
+
+.grid-icon[color-theme = "hidden"] {
+    --main: transparent;
+    --tab: transparent;
+    --text: black;
+    --main-hover: white;
+    --tab-hover: transparent;
+    --main-active: white;
+    --tab-active: grey;
+    --outline: hsla(0, 1%, 14%, 1.00);
+    --icon-color: black;
+    --icon-color-hover: black;
+}
+
+
+editor-root {
+    font-family: "system-ui", sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 5vh;
+    width: 100%;
+    height: 100%;
+    font-size: clamp(7px, 1.3vw, 14px);
+    background: var(--c-bg);
+}
+
+
+[up] {
+    --i-bg: var(--up);
+}
+[down] {
+    --i-bg: var(--down);
+}
+editor-root grid-layout {
+    background-color: transparent
+}
+
+
+.fill-unknown {
+    background-image: var(--i-e-fill-unknown);
+    background-position: center;
+    color: var(--c-darker);
+    background-size: contain;
+}
+.fill-unknown[e-border] {
+    background-image: var(--i-e-border-unknown);
+}
+.fill-unknown[e-letter-b] {
+    background-image: var(--i-e-letter-b-unknown);
+}
+
+.fill-transparent {
+    background-image: var(--fill-transparent);
+    background-position: center;
+    background-repeat: repeat;
+    background-color: transparent;
+    background-size: 0.4em 0.4em;
+}
+
+
+.centered {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.pad {
+    padding: 0.4em 1em;
+}
+.contents {
+    display: contents;
+}
+.contents[hidden] {
+    display: none;
+}
+
+
+.panel {
+    color: var(--c-text);
+    background-color: var(--c-light);
+}
+.darker {
+    background-color: var(--c-darker);
+}
+.dark {
+    background-color: var(--c-dark);
+}
+.light {
+    background-color: var(--c-light);
+}
+.b-bottom {
+    border-bottom: var(--panel-border);
+}
+.b-left {
+    border-left: var(--panel-border);
+}
+.b-right {
+    border-right: var(--panel-border);
+}
+.b-all {
+    border: var(--panel-border);
+}
+
+
+i-bw {
+    background-color: currentColor;
+    mask-image: var(--i-bg);
+    display: inline-block;
+    width: 1.2em;
+    height: 1.2em;
+    mask-position: center;
+    mask-size: contain;
+    mask-repeat: no-repeat;
+}
+
+
+
+.editor-tools {
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+}
+
+.selection-options {
+    display: flex;
+    align-items: center;
+}
+.selection-options .category {
+    cursor: pointer;
+    display: flex;
+    gap: 1.3em
+}
+
+.selection-options .category[selected] {
+    background-color: var(--c-light);
+}
+
+.binding {
+    opacity: 0.5;
+}
+.binding::before {
+    content: "[";
+}
+.binding::after {
+    content: "]";
+}
+
+.tools {
+    display: flex;
+    padding: 0.2em;
+    gap: 0.2em;
+}
+.tool-separator {
+    width: 0px;
+    margin: 0.4em 0.7em;
+    border-right: var(--panel-border);
+}
+
+.tool-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3em;
+    padding: 0.4em 0em;
+    border-radius: 0.7em;
+    cursor: pointer;
+    aspect-ratio: 0.85;
+    height: 5.6em;
+}
+.tool-icon:hover {
+        background-color: #0004;
+}
+.tool-icon[selected] {
+    background-color: #0002;
+}
+.tool-icon > i-bw {
+    font-size: 2.4em;
+}
+.tool-icon .label {
+    white-space: pre;
+    text-align: center;
+    font-size: 0.9em;
+}
+
+.tool-icon .label > i-bw {
+    font-size: 0.7em;
+}
+
+.tool-icon[disabled] {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+
+
+.image-list {
+    display: flex;
+    padding: 0.4em;
+    margin: 0.4em 0.4em;
+    border: var(--panel-border);
+    border-radius: 0.7em;
+    background: var(--c-lighter);
+    overflow: hidden;
+}
+.image-box {
+    aspect-ratio: 1;
+    background-size: 95% 95%;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: 0.3em;
+}
+.image-box:hover {
+    background-color: var(--c-dark);
+}
+
+.editor-main {
+    height: 100%;
+    display: flex;
+}
+
+.panel.side {
+    display: flex;
+    width: 26vw;
+}
+.panel.side  .main {
+    width: 100%;
+}
+.panel.side .slider {
+    width: 0.4em;
+    cursor: ew-resize;
+    background-color: var(--c-dark);
+}
+
+.editor-main grid-layout {
+    padding: var(--gap);
+    box-sizing: border-box;
+}
+
+.drop-down {
+    color: var(--c-text);
+    background-color: var(--c-light);
+    border: var(--panel-border);
+    box-shadow: 0px 0px 10px 2px #000000a1;
+}
+
+
+color-picker {
+    padding: 0.5em;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 0.5em;
+}
+color-picker .swatches { 
+    display: flex;
+    gap: 0.4em;
+    flex-direction: column;
+    transition: 0.2s ease opacity;
+    opacity: 1;
+}
+color-picker[sampler] .swatches {
+    opacity: 0;
+    pointer-events: none;
+}
+
+color-picker .swatch-grid {
+    font-size: 2.9em;
+}
+color-picker .swatch {
+    margin: 2px;
+    cursor: pointer;
+}
+
+color-picker  .swatch:hover,
+color-picker  .swatch[selected] {
+    border: 1px solid var(--border-color);
+    outline: 1px solid white;
+    margin: 1px;
+}
+color-picker  .buttons-row {
+    display: flex;
+    gap: 0.4em;
+}
+color-picker  .h-separator {
+    border-bottom: var(--panel-border);
+    margin-top: 0.2em;
+}
+
+color-picker[sampler] .color-sampler{
+    opacity: 1;
+    pointer-events: all;
+}
+
+color-picker .color-sampler {
+    position: absolute;
+    top: 0; 
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0.5em;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.2s ease opacity;
+    gap: 0.5em;
+}
+
+color-picker .color-sampler canvas {
+    width: 100%;
+}
+
+color-picker canvas {
+    border-radius: 0.3em;
+}
+color-picker .inputs {
+    display: flex;
+    gap: 0.5em;
+}
+
+
+/* SHARED INPUT STYLE */
+image-finder .finder .panel input,
+color-picker input {
+    background: var(--c-dark);
+    border: var(--input-border);
+    outline: none;
+    border-radius: 0.4em;
+    color: white;
+    font-size: 1.3em;
+    padding: 0.2em 0.2em;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+image-finder .finder .panel input:focus,
+color-picker input:focus {
+    background-color: var(--c-head);
+}
+
+
+.selection-list {
+    min-width: 10em;
+}
+.selection-list > div:hover,
+.selection-list > div[selected] {
+    background-color: var(--c-dark);
+    cursor: pointer;
+}
+
+
+.btn {
+    padding: 0.3em 0.8em;
+    border-radius: 0.4em;
+    border: var(--input-border);
+    cursor: pointer;
+}
+.i-btn:hover,
+.btn:hover {
+    background-color: var(--c-dark);
+}
+
+
+
+
+image-finder {
+    --columns: 8;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    margin: 5em;
+    z-index: 1000;
+    border-radius: 0.5em;
+    overflow: hidden;
+    box-shadow: 0 0 20px var(--c-darker);
+}
+
+/* image-finder {
+    --border: var(--panel-border);
+    --c-head: var(--c-darker);
+    --c-panel: var(--c-dark);
+    --c-selected-panel: var(--c-light);
+    --c-text: #fffb;
+} */

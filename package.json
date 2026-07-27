@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "build:icons": "node build-icons-css.mjs"
   },
   "type": "module",
   "dependencies": {
