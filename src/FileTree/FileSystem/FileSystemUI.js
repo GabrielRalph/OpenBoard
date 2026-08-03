@@ -1,6 +1,7 @@
 import { SvgPlus } from "../../Utilities/utils.js";
-import { ContextMenu } from "../context-menu.js";
-import { FileSystem, FStats, Path, PS } from "./FileSystem.js";
+import { ContextMenu } from "../../ContextMenu/context-menu.js";
+import { FileSystem, FStats } from "./FileSystem.js";
+import { Path, PATH_SEPERATOR } from "./path.js";
 
 const DRAG_STATE = {
 }
@@ -82,7 +83,7 @@ export class FSFileIcon extends DragableLocation {
             "draggable": true,
         }
         this.addEventListener("dblclick", e => {
-           root.promtRename(fstat.path);
+           this.onDoubleClick(e, root, fstat);
         });
 
         this.addEventListener("dragstart", e => {
@@ -106,9 +107,12 @@ export class FSFileIcon extends DragableLocation {
         }
     }
 
+    onDoubleClick(e, root, fstat) {
+        root.promtRename(fstat.path);
+    }
+
     onContextMenu(e, root) {}
 }
-
 
 export class FSColumn extends DragableLocation {
     /**
@@ -170,6 +174,14 @@ export class FSColumn extends DragableLocation {
     onContextMenu(e, root) {}
 }
 
+
+const DEFAULT_PROMT_OPTIONS = {
+    message: "",
+    defaultValue: "", 
+    yesValue: "Rename", 
+    noValue: "Cancel",
+    validator: () => true
+}
 
 export class FileSystemUI extends SvgPlus {
     #selected = new Path("");
@@ -240,10 +252,20 @@ export class FileSystemUI extends SvgPlus {
         return result;
     }
 
-    async prompt(message, defaultValue, yesValue = "Rename", noValue = "Cancel") {
+    async prompt(options = DEFAULT_PROMT_OPTIONS) {
+        const {
+            message,
+            defaultValue,
+            yesValue,
+            noValue,
+            validator,
+        } = {...DEFAULT_PROMT_OPTIONS, ...(options && typeof options === "object" ? options : {})};
+
         this.popup.innerHTML = "";
         this.popup.class = "prompt";
         this.popup.styles = {"--n": 2};
+        this.popup.toggleAttribute("invalid", false);
+
         this.popup.createChild("div", {content: message});
         let input = this.popup.createChild("input", {
             type: "text",
@@ -254,6 +276,22 @@ export class FileSystemUI extends SvgPlus {
             input.select();
         }, 10);
         let promise = new Promise((resolve, reject) => {
+
+            let lastValidity = null;
+            let updateValidity = () => {
+                let isValid = validator(input.value);
+                if (lastValidity !== isValid) {
+                    if (isValid !== true) {
+                        input.setCustomValidity(isValid || "Invalid input");
+                        input.reportValidity();
+                    } else {
+                        input.setCustomValidity("");
+                    }
+                    this.popup.toggleAttribute("invalid", isValid !== true);
+                    lastValidity = isValid;
+                }
+            }
+
             let row = this.popup.createChild("div", {class: "buttons"});
             row.createChild("div")
             .createChild("button", {
@@ -264,6 +302,7 @@ export class FileSystemUI extends SvgPlus {
             });
             row.createChild("div")
             .createChild("button", {
+                primary: true,
                 content: yesValue,
                 events: {
                     click: () => resolve(input.value)
@@ -271,18 +310,25 @@ export class FileSystemUI extends SvgPlus {
             });
             input.addEventListener("keydown", e => {
                 if (e.key === "Enter") {
-                    resolve(input.value);
+                    updateValidity();
+                    if (lastValidity === true) {
+                        resolve(input.value);
+                    }
                 } else if (e.key === "Escape") {
                     resolve(null);
                 }
             });
+
+            input.addEventListener("input", e => {
+                updateValidity();
+            })
         })
+
         this.popup.toggleAttribute("hidden", false);
         let result = await promise;
         this.popup.toggleAttribute("hidden", true);
         return result;
     }
-
 
 
     /**
@@ -300,7 +346,11 @@ export class FileSystemUI extends SvgPlus {
 
     async promtRename(path) {
         path = path instanceof Path ? path : new Path(path);
-        let newName = await this.prompt(`Rename ${path.name} to:`, path.name);
+        let newName = await this.prompt({
+            message:`Rename ${path.name} to:`,
+            defaultValue: path.name,
+            validator: (value) => value.indexOf(PATH_SEPERATOR) !== -1 ? `Name cannot contain “${PATH_SEPERATOR}”` : true
+        });
         if (newName && newName !== path.name) {
             await this.rename(path, newName);
         }
@@ -511,7 +561,7 @@ export class FileSystemUI extends SvgPlus {
         const n = pslice.length;
         this.main.styles = {"--n": n};
         for (let i = 0; i < n; i++) {
-            let path = new Path(pslice.slice(0, i+1).join(PS));
+            let path = new Path(pslice.slice(0, i+1));
             const stat = this.fs.stat(path);
             if (stat.isDirectory) {
                 let files = this.fs.readdir(path);
@@ -696,5 +746,11 @@ export class FileSystemUI extends SvgPlus {
             this.dispatchEvent(new CustomEvent("selection-change"));
         }
         return changed;
+    }
+
+    static get usedStyleSheets() {
+        return [
+            ...ContextMenu.usedStyleSheets,
+        ]
     }
 }

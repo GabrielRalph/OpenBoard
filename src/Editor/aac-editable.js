@@ -67,13 +67,9 @@ class AACEditorGrid extends AACGrid {
     #selectedButtonIDs = new Set();
     #isMultiSelectOn = false;
 
-    /**
-     * @param {OBBoard} board
-     */
-    constructor(board) {
-        super();
-        this.board = board;
 
+    constructor() {
+        super();
         window.addEventListener("keydown", (e) => {
             if (e.key === "Shift") { this.#isMultiSelectOn = true; }
         });

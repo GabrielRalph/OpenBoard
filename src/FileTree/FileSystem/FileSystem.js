@@ -1,12 +1,40 @@
+import { Path } from "./path.js";
+
 /**
  * This module provides a simple in-memory file system implementation with basic file and directory operations.
  * Directories can also be files
  */
 
-
 const DEBUG = 
 // () => void 0;
 (...args) => console.log("%c[FileSystem]", "color: blue; font-weight: bold;", ...args);
+
+const DIR = {isDirectory: true}
+
+function deepCompare(obj1, obj2) {
+    if (typeof obj1 !== typeof obj2) return false;
+    if (obj1 && obj2 && typeof obj1 === 'object') {
+        const keys1 = Object.keys(obj1);
+        const keys2 = Object.keys(obj2);
+        if (keys1.length !== keys2.length) return false;
+        for (let key of keys1) {
+            if (!deepCompare(obj1[key], obj2[key])) return false;
+        }
+        return true;
+    }
+    return obj1 === obj2;
+}
+
+function deepCopy(obj) {
+    if (obj && typeof obj === 'object') {
+        const copy = Array.isArray(obj) ? [] : {};
+        for (let key in obj) {
+            copy[key] = deepCopy(obj[key]);
+        }
+        return copy;
+    }
+    return obj;
+}
 
 
 class ChangeExecuter {
@@ -63,9 +91,6 @@ class ChangeExecuter {
     }
 }
 
-export const PS = "\\"
-
-const DIR = {isDirectory: true}
 
 export class FStats {
     constructor(path, file, fs) {
@@ -88,157 +113,6 @@ export class FStats {
 
     get lastUpdated() {
         return this.metadata.lastUpdated || null;
-    }
-}
-
-function deepCompare(obj1, obj2) {
-    if (typeof obj1 !== typeof obj2) return false;
-    if (obj1 && obj2 && typeof obj1 === 'object') {
-        const keys1 = Object.keys(obj1);
-        const keys2 = Object.keys(obj2);
-        if (keys1.length !== keys2.length) return false;
-        for (let key of keys1) {
-            if (!deepCompare(obj1[key], obj2[key])) return false;
-        }
-        return true;
-    }
-    return obj1 === obj2;
-}
-
-function deepCopy(obj) {
-    if (obj && typeof obj === 'object') {
-        const copy = Array.isArray(obj) ? [] : {};
-        for (let key in obj) {
-            copy[key] = deepCopy(obj[key]);
-        }
-        return copy;
-    }
-    return obj;
-}
-
-export class Path {
-    #parts = [];
-    #path = "";
-
-    /**
-     * @param {string} path the string representation of the path
-     */
-    constructor(path, throwError = false) {
-        path = path instanceof Path ? path.path : path;
-        if (typeof path !== "string" || path.length === 0) {
-            if (throwError) {
-                throw new Error("Path must be a non-empty string");
-            } else {
-                path = "";
-            }
-        }
-
-        this.#parts = path.split(PS).filter(p => p.length > 0);
-        this.#path = this.#parts.join(PS);
-    }
-
-    /**
-     * @returns {string} the string representation of the path
-     */
-    get path() {
-        return this.#path;
-    }
-
-    /**
-     * @returns {string[]} the parts of the path as an array of strings
-     */
-    get parts() {
-        return [...this.#parts];
-    }
-
-    /**
-     * @returns {number} the number of parts in the path
-     */
-    get length() {
-        return this.#parts.length;
-    }
-
-    /**
-     * @returns {string} the name of the last part of the path
-     */
-    get name() {
-        return this.#parts[this.#parts.length - 1] || "";
-    }
-
-    /**
-     * @returns {?Path} 
-     */
-    get parent() {
-        let parent = null;
-        if (this.#parts.length > 0) {
-            const parentPathArray = this.#parts.slice(0, this.#parts.length - 1);
-            parent = new Path(parentPathArray.join(PS));
-        }
-        return parent;
-    }
-
-    /**
-     * @param {string|Path} other the other path to join with this path
-     * @returns {Path} a new Path object representing the joined path
-     */
-    join(other) {
-        if (!(other instanceof Path)) {
-            other = new Path(other);
-        }
-        let newParts = [...this.#parts, ...other.parts];
-        return new Path(newParts.join(PS));
-    }
-
-    /**
-     * @param {string|Path} otherPath the other path to check if it is contained within this path
-     * @returns {boolean} true if the other path is contained within this path, false otherwise
-     */
-    contains(otherPath) {
-        if (!(otherPath instanceof Path)) {
-            otherPath = new Path(otherPath);
-        }
-        return this.#parts.every((p, i) => otherPath.parts[i] === p);
-    }
-
-    isParentOf(otherPath) {
-        if (!(otherPath instanceof Path)) {
-            otherPath = new Path(otherPath);
-        }
-        return this.#parts.length < otherPath.parts.length && this.contains(otherPath);
-    }
-
-    same(otherPath) {
-        if (!(otherPath instanceof Path)) {
-            otherPath = new Path(otherPath);
-        }
-        return this.#path === otherPath.path;
-    }
-
-    /**
-     * @param {...number} args the arguments to slice the path parts
-     * @returns {Path} a new Path object representing the sliced path
-     * 
-     * Example:
-     * let path = new Path("folderA\\subfolderA\\file1.txt");
-     * let slicedPath = path.slice(0, 2); // returns a new Path object with path "folderA\\subfolderA"
-     */
-    slice(...args) {
-        let slicedParts = this.#parts.slice(...args);
-        return new Path(slicedParts.join(PS));
-    }
-
-    /**
-     * @returns {string} the string representation of the path
-     */
-    toString() {
-        return this.path;
-    }
-
-    /**
-     * @returns {Path} a new Path object that is a clone of this path
-     */
-    clone() {
-        return new Path(this.path);
     }
 }
 
@@ -293,7 +167,6 @@ class FSAsObject {
         traverse(node, path);
         return paths;
     }
-    
 
     delete(path) {
         path = path instanceof Path ? path : new Path(path);
@@ -353,6 +226,10 @@ export class FileSystem {
         this.#fstatsClass = FStatsClass;
     }
 
+    /**
+     * This method commits all changes that have been currently made 
+     * to the file system to the history.
+     */
     _commitHistory(newPath, oldPath) {
         this.#history = this.#history.slice(0, this.#historyIndex);
         this.#history.push({
@@ -392,10 +269,16 @@ export class FileSystem {
         this.#currentHistorySet = {};
     }
 
+    /**
+     * @returns {Array<{newPath: Path, oldPath: Path, set: Record<string, {oldValue: any, newValue: any}>}>} returns the history of changes made to the file system.
+     */
     get history() {
         return [...this.#history];
     }
 
+    /**
+     * This method undoes the last change made to the file system.
+     */
     undo() {
         let res = null;
         if (this.#history.length > 0 && this.#historyIndex > 0) {
@@ -412,6 +295,9 @@ export class FileSystem {
         return res;
     }
 
+    /**
+     * This method redoes the last undone change.
+     */
     redo() {
         let res = null;
         if (this.#history.length > 0 && this.#historyIndex < this.#history.length) {
@@ -427,6 +313,9 @@ export class FileSystem {
         return res;
     }
     
+    /**
+     * This method removes all history.
+     */
     clearHistory() {
         this.#history = [];
         this.#currentHistorySet = {};
@@ -445,6 +334,10 @@ export class FileSystem {
         return path in this.#filelist;
     }
 
+    /**
+     * Return the value at the specified path in the file system.
+     * @param {string|Path} path the path to get the value of
+     */
     _get(path) {
         if (path instanceof Path) {
             path = path.path;
@@ -454,14 +347,16 @@ export class FileSystem {
         return this.#filelist[path];
     }
 
+     /**
+     * This method is called whenever a file is changed. 
+     * It can be overridden by subclasses to perform custom actions.
+     * @override
+     * @param {string|Path} path the path to delete
+     * @param {any} value the new value to set at the path
+     * @param {boolean} commitHistory whether to commit the change to history
+     * @returns {boolean} returns true if the path was changed.
+     */
     _set(path, value, commitHistory = true) {
-        // DEBUG("set", path+"", value);
-        // try {
-        //     throw new Error()
-        // } catch (e) {
-        //     console.log("Stack trace for _set call:", e.stack);
-        // }
-
         path = path instanceof Path ? path : new Path(path);
         let isChanged = false;
         if (value === null) {
@@ -486,6 +381,14 @@ export class FileSystem {
         return isChanged;
     }
 
+    /**
+     * This method is called whenever a file is deleted from the file system. 
+     * It can be overridden by subclasses to perform custom actions on deletion.
+     * @override
+     * @param {string|Path} path the path to delete
+     * @param {boolean} commitHistory whether to commit the change to history
+     * @returns {boolean} returns true if the path was deleted, false otherwise.
+     */
     _deleteFile(path, commitHistory = true) {
         path = path instanceof Path ? path : new Path(path);
         let isChanged = this._has(path);
@@ -510,10 +413,6 @@ export class FileSystem {
      */
     _contains(path) {
         return !!this.#fsAsObject.get(path);
-        // path = path instanceof Path ? path : new Path(path);
-        // const files = Object.entries(this.#filelist2path);
-        // const isDir = files.some(([k, a]) => path.contains(a));
-        // return isDir;
     }
 
     _containing(path) {
@@ -654,7 +553,8 @@ export class FileSystem {
                 files.map(f => {
                     let parts = f.path.parts;
                     parts[path.length - 1] = newName;
-                    let npath = new Path(parts.join(PS));
+                    let npath = new Path(parts);
+
 
                     DEBUG(`Renaming file ${f.path} to ${npath}`);
                     return [
@@ -737,7 +637,12 @@ export class FileSystem {
         return result;
     }
 
+    /**
+     * This method is called whenever the file system is updated.
+     * It can be overridden by subclasses to perform custom actions on updates.
+     * @override
+     * */
     _onUpdate() {
     }
 }
-
+   

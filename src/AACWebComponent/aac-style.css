@@ -1,9 +1,11 @@
-
+[shadow] {
+    --border: .25vw;
+    --gap: .125vw;
+    --pad: var(--gap);
+}
 grid-layout {
     width: 100%;
     height: 100%;
-    background-color: #7b766f;
-    --gap: 2px;
 }
 
 access-textarea {
@@ -17,10 +19,11 @@ aac-board-contents grid-layout {
     box-sizing: border-box;
 }
 
-.grid-icon {
-    --shadow-color: #565048cf
-}
 
+access-button.grid-icon  {
+    --shadow-color: #565048cf
+
+}
 
 access-button.grid-icon:not([label-at-bottom]) .content {
     flex-direction: column-reverse !important;
@@ -31,9 +34,6 @@ access-button.grid-icon .content .symbol {
     position: relative;
 }
 
-access-button.grid-icon[card="folder"] .content .display-value {
-    padding-top: 1vmin;
-}
 
 access-button.grid-icon .symbol img {
     max-width: unset;
@@ -44,9 +44,18 @@ access-button.grid-icon .symbol img {
     left: 0;
 }
 
+access-button.grid-icon[card="folder"] .content {
+    padding-top: calc(var(--pad) + var(--height) / 10);
+}
+
+
 access-button.grid-icon .content {
-    padding: calc(0.02 * hypot(var(--width), var(--height)));
+    padding: var(--pad);
     box-sizing: border-box;
+}
+
+.grid-icon .outline {
+    stroke-linecap: round;
 }
 
 .grid-icon .content .display-value {

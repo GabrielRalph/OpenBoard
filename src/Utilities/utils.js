@@ -2512,12 +2512,10 @@ const GRID_ICON_THEMES = {
 
 
 const CARD_RENDERERS = {
-    BORDER_RADIUS_PERCENTAGE: 0.0075,
-    BORDER_SIZE: 4,
-
-    plain(size, border = this.BORDER_SIZE) {
+    F45RAD: 1 / Math.tan( 3 * Math.PI / 8 ),
+    plain(size, border, borderRadius) {
         let inSize = size.sub(border);
-        let g = Math.min(window.innerWidth, window.innerHeight) * this.BORDER_RADIUS_PERCENTAGE;
+        let g = borderRadius;;
         return `
             <rect class = "card" x = "${border/2}" y = "${border/2}" width = "${inSize.x}"  height = "${inSize.y}" rx = "${g}" ry = "${g}" />
             
@@ -2529,49 +2527,57 @@ const CARD_RENDERERS = {
             `
     },
     
-    folder(size, border = this.BORDER_SIZE, relSize =  Math.min(window.innerWidth, window.innerHeight)) {
+    folder(size, border, borderRadius) {
+      /** 
+       *           _ p1 ________ c2 
+       *         ⁄  |              ﹨
+       *       ⁄                     \
+       *     /
+       *     p0
+       *     |
+       */
         let inSize = size.sub(border);
-        let g = relSize * this.BORDER_RADIUS_PERCENTAGE;
+        let g = borderRadius;
         let w = inSize.x;
-        let b = w * 0.45;
+        let y = this.F45RAD
+
     
-        g = Math.min(b / 3, g);
+        g = Math.min(w / (3 + 2 * y), g);
+        let d0 = w - g * (3 + 2 * y);
+        let b = d0 * 0.45
     
-        let t = g / 3;
+        let p1 = new Vector(border/2, border/2 + 2*g);
+        let p2 = p1.addV(-g);
+        let p3 = p2.add(g, -g);
+        let p4 = p3.addH(b);
+
+        let d1 = y*g/Math.sqrt(2)
+        let p5 = p4.addH(y * g).add(d1)
+
+        let p7 = p4.add(g * (1 + 2 * y), g)
+        let p6 = p7.addH(-y * g).sub(d1)
+        let p9 = p1.addH(w)
+        let p8 = p9.sub(g)
+
         let h = inSize.y;
+        let p10 = p9.addV(h - 3 * g);
+        let p11 = p10.add(-g, g);
+
+        let p13 = p1.addV(h - 3 * g);
+        let p12 = p13.add(g, g);
+
+
+        g = new Vector(g, g);
+        let tabPath = `M${p1}L${p2}A${g},0,0,1,${p3}L${p4}A${g},0,0,1,${p5}L${p6}A${g},0,0,0,${p7}L${p8}A${g},0,0,1,${p9}Z`;
     
-        let p0 = new Vector(border/2, border/2 + 2*g);
-        let p1 = p0.addV(-g);
-        let p2 = p1.add(g, -g);
+        // let p9 = p8.addV(h - 3 * g);
+        // let p10 = p9.add(-g, g);
     
-        let c2 = p1.addH(b);
-        let c1 = c2.add(-g);
-        
-        let tv = new Vector(t, 0);
-        let tv2 = tv.rotate(-Math.PI * 3 / 4);
+        // let p11 = p10.addH(2 * g - w);
+        // let p12 = p11.sub(g);
     
-        let p3 = c1.sub(tv);
-        let p4 = c1.sub(tv2);
-    
-        let p5 = c2.add(tv2);
-        let p6 = c2.add(tv);
-    
-        let p7 = p1.addH(w - g);
-        let p8 = p0.addH(w);
-    
-        let rg = new Vector(g);
-        let rt = new Vector(t * Math.tan(Math.PI * 3 / 8));
-    
-        let tabPath = `M${p0}L${p1}A${rg},0,0,1,${p2}L${p3}A${rt},0,0,1,${p4}L${p5}A${rt},0,0,0,${p6}L${p7}A${rg},0,0,1,${p8}Z`;
-    
-        let p9 = p8.addV(h - 3 * g);
-        let p10 = p9.add(-g, g);
-    
-        let p11 = p10.addH(2 * g - w);
-        let p12 = p11.sub(g);
-    
-        let card = `M${p8.addV(-0.1)}L${p9}A${rg},0,0,1,${p10}L${p11}A${rg},0,0,1,${p12}L${p0.addV(-0.1)}Z`;
-        let outline = `M${p0}L${p1}A${rg},0,0,1,${p2}L${p3}A${rt},0,0,1,${p4}L${p5}A${rt},0,0,0,${p6}L${p7}A${rg},0,0,1,${p8}L${p9}A${rg},0,0,1,${p10}L${p11}A${rg},0,0,1,${p12}Z`;
+        let card = `M${p9}L${p10}A${g},0,0,1,${p11}L${p12}A${g},0,0,1,${p13}L${p1}Z`;
+        let outline = `M${p1}L${p2}A${g},0,0,1,${p3}L${p4}A${g},0,0,1,${p5}L${p6}A${g},0,0,0,${p7}L${p8}A${g},0,0,1,${p9}L${p10}A${g},0,0,1,${p11}L${p12}A${g},0,0,1,${p13}Z`;
         return  `
     
                 <path class = "card" d = "${card}" />
@@ -2612,10 +2618,11 @@ class GridIconSymbol extends SvgPlus{
 
             if (typeof url === "string") {
                 if (useBackgroundImg) {
+                    url = url.replace(/"/g, "%22");
                     this.createChild("div", {
                         class: "bg-img",
                         style: {
-                            "background-image": `url(${url})`,
+                            "background-image": `url("${url}")`,
                         }
                     });
                 } else {
@@ -2754,11 +2761,22 @@ class GridCard extends SvgPlus {
                 let size = new Vector(width, height);
                 this.cardIcon.props = {
                     viewBox: `0 0 ${size.x} ${size.y}`,      // Update the svg viewBox.
-                    content: this.cardRenderer(size) // Recompute the svg content.
+                    content: this.cardRenderer(
+                      size, 
+                      this.getCardBorderWidth(width, height), 
+                      this.getCardBorderRadius(width, height)
+                    ) // Recompute the svg content.
                 };
             }
         }
         return [bbox.width, bbox.height];
+    }
+
+    getCardBorderRadius(w, h) {
+      return h/20;
+    }
+    getCardBorderWidth() {
+      return window.innerWidth < 450 ? 2 : 4;
     }
 }
 
@@ -2993,6 +3011,11 @@ class GridLayout extends SvgPlus {
                 "--cols": cols
             };
         } 
+        this._size = [rows, cols];
+    }
+
+    get size() {
+      return this._size;
     }
 
 
@@ -3008,6 +3031,11 @@ class GridLayout extends SvgPlus {
     add(item, ...posArgs) {
         let [row, col, rowEnd, colEnd] = parseCellPosition(...posArgs);
 
+        if (SvgPlus.is(item, GridIcon)) {
+            item.getCardBorderRadius = () => {
+              return this.clientHeight / 20 / this.size[0];
+            }
+        }
         if (SvgPlus.is(item, SvgPlus) && row !== null) {
             item.styles = {
                 "grid-row-start": row + 1,

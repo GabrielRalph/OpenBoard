@@ -47,7 +47,7 @@ import { getStorage,
          getBlob, 
          getMetadata } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-storage.js'
 
-import * as FStore from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js'
+import * as FS from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js'
 
 
 const firebaseConfig = {
@@ -121,7 +121,7 @@ export async function initialise(config = firebaseConfig) {
   App = initializeApp(config);
   Database = getDatabase(App);
   Auth = getAuth();
-  Firestore = FStore.getFirestore(App);
+  Firestore = FS.getFirestore(App);
 
   Storage = getStorage(App, storageURL);
   for (let key in Functions) Functions[key] = getFunctions(App, key);
@@ -286,7 +286,16 @@ export async function getFile(path) {
   return await getBlob(storageRef(path));
 }
 
+const collection = FS.collection;
+const writeBatch = FS.writeBatch;
 
+const FStore = {...FS}
+FStore.collection = (...args) => {
+    return collection(Firestore, ...args);
+}
+FStore.writeBatch = (...args) => {
+    return writeBatch(Firestore, ...args);
+}
 
 export {
         reauthenticateWithCredential, 

@@ -16,6 +16,7 @@ export class Color {
             const value = args[0];
             if (value instanceof Color) {
                 [r,g,b,a] = [value.r, value.g, value.b, value.a];
+                [h,s,l] = Color.rgbToHsl(r,g,b);
             } else if (typeof value === "string") {
                 if (value === "transparent") {
                     a = 0;
@@ -64,6 +65,9 @@ export class Color {
         this.#a = a;
     }
 
+    clone() {
+        return new Color(this)
+    }
 
     lurp(other, t) {
         const r = this.r + (other.r - this.r) * t;
@@ -71,6 +75,10 @@ export class Color {
         const b = this.b + (other.b - this.b) * t;
         const a = this.a + (other.a - this.a) * t;
         return new Color(r, g, b, a);
+    }
+
+    get brightness() {
+        return 0.2126*this.#r + 0.7152*this.#g + 0.0722*this.#b;
     }
 
     get valid() {
@@ -101,19 +109,19 @@ export class Color {
     get a() { return this.#a; }
 
     set h(value) {
-        this.#h = value;
+        this.#h = value % 360;
         [this.#r, this.#g, this.#b] = Color.hslToRgb(this.#h, this.#s, this.#l);
     }
     get h() { return this.#h; }
 
     set s(value) {
-        this.#s = value;
+        this.#s = Math.max(0, Math.min(value, 1)) ;
         [this.#r, this.#g, this.#b] = Color.hslToRgb(this.#h, this.#s, this.#l);
     }
     get s() { return this.#s; }
 
     set l(value) {
-        this.#l = value;
+        this.#l = Math.max(0, Math.min(value, 1));
         [this.#r, this.#g, this.#b] = Color.hslToRgb(this.#h, this.#s, this.#l);
     }
     get l() { return this.#l; }

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const assetsDir = path.join(__dirname, "Assets");
+const assetsDir = path.join(__dirname, "Assets/Icons");
 const outFile = path.join(assetsDir, "icons.css");
 
 // Keep legacy variable names currently used by FileTree/style.css.
@@ -92,7 +92,7 @@ async function main() {
     const varName = varNameFromFile(fileName);
     const dataUri = toDataUri(cleaned);
     declarations.push(`    --i-${varName}: url('${dataUri}');`);
-    defs.push(`[${varName}] { --i-bg: var(--i-${varName}); }`);
+    defs.push(`[i="${varName}"], [${varName}] { --i-bg: var(--i-${varName}); }`);
   }
 
   const css = [
@@ -102,6 +102,25 @@ async function main() {
     "}",
     "",
     ...defs,
+`i-bw {
+    background-color: currentColor;
+    mask-image: var(--i-bg);
+    display: inline-block;
+    width: 1.2em;
+    height: 1.2em;
+    mask-position: center;
+    mask-size: contain;
+    mask-repeat: no-repeat;
+}
+i-c {
+    background-image: var(--i-bg);
+    display: inline-block;
+    width: 1.2em;
+    height: 1.2em;
+    background-position: center;
+    background-size: contain;
+    background-repeat: no-repeat;
+}`
   ].join("\n");
 
   await fs.writeFile(outFile, css, "utf8");

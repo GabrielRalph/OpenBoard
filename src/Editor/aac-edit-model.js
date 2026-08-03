@@ -10,9 +10,179 @@ function newButtonID() {
     return Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
 }
 
+
+class ActionsSimple {
+    clearText = { 
+        on: false,
+        mode: "all"
+    }
+    addText = {
+        on: false,
+        newWord: true,
+        value: null,
+        utterance: null,
+    }
+
+    holdPage = { on: false }
+    speak = { on: false }
+
+    openWordFinder = { on: false }
+
+    navigation =  {
+        mode: null,
+        value: null,
+    }
+
+    moveCursor = {
+        on: false,
+        direction: null,
+        amount: null,
+    }
+
+    ACTION_PARSERS = {
+        "hold_page": (action) => {
+            this.holdPage.on = true;
+        },
+        "hold": (action) => {
+            this.holdPage.on = true;
+        },
+        "speak": (action) => {
+            this.speak.on = true;
+        },
+        "insert_text": (action) => {
+            this.addText.on = true;
+            this.addText.value = action.value;
+            this.addText.newWord = true;
+        },
+        "open_word_finder": (action) => {
+            this.openWordFinder.on = true;
+        },
+        "append_text": (action) => {
+            this.addText.on = true;
+            this.addText.value = action.value;
+            this.addText.newWord = false;
+        },
+        "delete_word": (action) => {
+            this.clearText.on = true;
+            this.clearText.mode = "word";
+        },
+        "backspace": (action) => {
+            this.clearText.on = true;
+            this.clearText.mode = "backspace";
+        },
+        "clear": (action) => {
+            this.clearText.on = true;
+            this.clearText.mode = "all";
+        },
+        "cursor_up": (action) => {
+            this.moveCursor.on = true;
+            this.moveCursor.direction = "up";
+            this.moveCursor.amount = 1;
+        },
+        "cursor_down": (action) => {
+            this.moveCursor.on = true;
+            this.moveCursor.direction = "down";
+            this.moveCursor.amount = 1;
+        },
+        "cursor_left": (action) => {
+            this.moveCursor.on = true;
+            this.moveCursor.direction = "left";
+            this.moveCursor.amount = 1;
+        },
+        "cursor_right": (action) => {
+            this.moveCursor.on = true;
+            this.moveCursor.direction = "right";
+            this.moveCursor.amount = 1;
+        }
+    }
+
+    /** @param {OBButtonEditable} button */
+    updateFrom(button) {
+        let allActions = button.allActions
+        
+        for (let action of allActions) {
+            let parser = this.ACTION_PARSERS[action.mode];
+            if (parser) {
+                parser(action);
+            }
+        }
+        let navAction = button.navigationAction;
+        if (navAction) {
+            this.navigation.mode = navAction.mode;
+            this.navigation.value = navAction.value;
+        }
+
+        let label = button.label || "";
+        if (this.addText.on) {
+            if (label === this.addText.value) {
+                this.addText.value = null;
+            }
+        }
+
+        if (button.vocalization) {
+            this.addText.utterance = button.vocalization;
+        }
+
+        if (allActions.length === 0 && label.length > 0 && !button.load_board) {
+            this.addText.on = true;
+        }
+    }
+
+    applyTo(button) {
+        button.actions = [];
+        if (this.clearText.on) {
+            if (this.clearText.mode === "word") {
+                button.actions.push({mode: "delete_word"});
+            } else if (this.clearText.mode === "backspace") {
+                button.actions.push({mode: "backspace"});
+            } else {
+                button.actions.push({mode: "clear"});
+            }
+        }
+        
+        if (this.addText.on) {
+            let value = this.addText.value || button.label || "";
+            let mode = this.addText.newWord ? "insert_text" : "append_text";
+            button.actions.push({mode, value: value});
+        }
+
+        if (this.holdPage.on) {
+            button.actions.push({mode: "hold_page"});
+        }
+
+        if (this.moveCursor.on && this.moveCursor.direction) {
+            let mode = `cursor_${this.moveCursor.direction}`;
+            button.actions.push({mode});
+        }
+
+        if (this.speak.on) {
+            button.actions.push({mode: "speak"});
+        }
+
+        if (this.openWordFinder.on) {
+            button.actions.push({mode: "open_word_finder"});
+        }
+
+        if (this.navigation.mode === "load_board") {
+            if (!button.load_board) {
+                button.load_board = this.navigation.value;
+            }
+        } else if (this.navigation.mode && !button.load_board) {
+            button.actions.push({mode: this.navigation.mode, value: null});
+        }
+
+        if (this.addText.utterance) {
+            button.vocalization = this.addText.utterance;
+        }
+    }
+}
+
 /** Model Editor Extension
  */
 class OBButtonEditable extends OBButton {
+
+    #storedActionsSimple = null;
+
     get hidden() {
         let noLabel = typeof this.label !== "string" || this.label.length == 0
         let noImage = typeof this.image_id !== "string" || this.image_id.length == 0
@@ -29,7 +199,6 @@ class OBButtonEditable extends OBButton {
         });
     }
 
-
     clear() {
         this.assign(OBButtonEditable.make({
             id: "x",
@@ -42,6 +211,16 @@ class OBButtonEditable extends OBButton {
 
     refreshID() {
         this.id = newButtonID();
+    }
+
+
+    setProperty(prop, value) {
+        // check to see if property has a static parser 
+        let parserKey = prop + "_parser";
+        if (parserKey in this.constructor) {
+            value = this.constructor[parserKey](value);
+        }
+        this[prop] = value;
     }
 
     assign(obj) {
@@ -61,6 +240,32 @@ class OBButtonEditable extends OBButton {
                 this[prop] = obj[prop]
             }
         }
+    }
+
+
+    get actionsSimple() {
+        if (this.#storedActionsSimple === null) {
+            let actions = new ActionsSimple();
+            actions.updateFrom(this);
+            return actions;
+        } else {
+            return this.#storedActionsSimple;
+        }
+    } 
+
+    set actionsSimple(actions) {
+        this.#storedActionsSimple = actions;
+    }
+
+    toJSON() {
+        const json = {};
+        for (const key in this) {
+            if (!(this[key] instanceof Function)) {
+                json[key] = this[key];
+            }
+        }
+        this.actionsSimple.applyTo(json);
+        return json;
     }
 }
 
@@ -338,8 +543,5 @@ class OBBoardEditable extends OBBoard {
 
     }
 }
-
-
-
 
 export { OBBoardEditable }

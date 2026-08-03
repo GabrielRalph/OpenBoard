@@ -1,9 +1,7 @@
 import { FileSystem, FStats } from "./FileSystem.js";
-import * as FB from "../../Firebase/firebase.js";
 
-FB.initialise();
-const db = FB.getFirestore();
-const { writeBatch, collection, query, where, onSnapshot, getDocs, doc, updateDoc } = FB.FStore;
+import * as FB from "../../Firebase/firebase.js";
+const { writeBatch, collection, query, where, onSnapshot, getDocs, doc, updateDoc, serverTimestamp } = FB.FStore;
 
 /**
  * @typedef {Object} FileDescriptor
@@ -13,40 +11,16 @@ const { writeBatch, collection, query, where, onSnapshot, getDocs, doc, updateDo
  * @property {number} [lastUpdated] - The timestamp when the file or directory was last updated.
  */
 
-const P2K_REPLACERS = [
-    [/\//g, "~0~"],
-    [/\./g, "~1~"],
-    [/#/g,  "~2~"],
-    [/\$/g, "~3~"],
-    [/\[/g, "~4~"],
-    [/\]/g, "~5~"],
-]
+function duplicatePrefix(path) {
+    let prefix = path.match(/\((d+)\)\s+$/)
 
-const K2P_REPLACES = [
-    [/~0~/g, "/"],
-    [/~1~/g, "."],
-    [/~2~/g, "#"],
-    [/~3~/g, "$"],
-    [/~4~/g, "["],
-    [/~5~/g, "]"],
-]
-
-function path2key(path) {
-    if (/~\[0-5]+~/.test(path)) {
-        throw new Error("File paths cannot contain the sequence ~[0-5]+~ as it is reserved for escaping special characters.");
+    if (prefix) {
+        let num = parseInt(prefix[1]);
+        num++;
+        return path.replace(/\((d+)\)\s+$/, `(${num})`);
+    } else {
+        return path + " (2)";
     }
-    for (const [regex, repl] of P2K_REPLACERS) {
-        path = path.replace(regex, repl);
-    }
-    return path;
-}
-
-function key2path(key) {
-    let path = key;
-    for (const [reg, val] of K2P_REPLACES) {
-        path = path.replace(reg, val);
-    }
-    return path;
 }
 
 const VALID_KEYS = {
@@ -57,6 +31,7 @@ const VALID_KEYS = {
     "effectivePublic": true,
     "path": true,
 }
+
 /**
  * @template {FStats} T
  * @extends {FileSystem<T>}
@@ -85,14 +60,13 @@ export class FStoreFileSystem extends FileSystem {
      */
     constructor(user, col, fstatClass = FStats) {
         super(fstatClass);
-        this.#collection = collection(db, col);
+        this.#collection = collection(col);
         this.#user = user;
     }
 
     _createDirectory(path) {
         this._set(path, {
             isDirectory: true,
-            deletedAt: false,
         });
     }
 
@@ -110,34 +84,14 @@ export class FStoreFileSystem extends FileSystem {
         }
     }
 
-    async #pushDocUpdate(id, data, batch) {
-        try {
-            const docRef = doc(this.#collection, id)
-            if (batch) {
-                batch.update(docRef, data);
-            } else {
-                await updateDoc(docRef, data);
-            }
-        } catch (error) {
-            console.warn("Error updating document:", error);
-        }
-    }
-    async #pushDocSet(id, data, batch) {
-        try {
-            const docRef = doc(this.#collection, id)
-            if (batch) {
-                batch.set(docRef, data);
-            } else {
-                await setDoc(docRef, data);
-            }
-        } catch (error) {
-            console.warn("Error setting document:", error);
-        }
+    _parseNewItem(path, contents) {
+        return contents;
     }
 
+
     #setPath(path, value, commitHistory = true) {
-        const key = path2key(path.toString());
-        console.log("Setting path:", path.toString(), "value:", value);
+        const key = path.toString();
+        console.log("Setting path:", key, "value:", value);
         if (value === null) {
             const id = this.#key2docID[key];
             this.#changedKeySet[id] = {deletedAt: Date.now()};
@@ -149,48 +103,55 @@ export class FStoreFileSystem extends FileSystem {
             );
             update.path = key;
             update.deletedAt = false;
+            
 
             // If the value doesn't have an ID, generate a new document ID for it
             let id = value.id;
             if (!id || typeof id !== "string") {
+                update.createdAt = serverTimestamp();
                 update.owner = this.#user;
+                
                 id = doc(this.#collection).id;
                 this._get(path).id = id; // Update the FStats instance with the new ID
-                this.#writeSet[id] = update;
+
+                this.#writeSet[id] = this._parseNewItem(path, update);
             } else {
-                this.#changedKeySet[id] = update;
+                this.#changedKeySet[id] = this._parseUpdateItem(path, update);
             }
         }
 
+        this.#triggerBatchUpdate();
+    }
+
+    async #triggerBatchUpdate() {
         if (!this.#changedKeySetTimeout) {
             this.#changedKeySetTimeout = true;
-            window.requestAnimationFrame(() => {
-                let changedKeySet = this.#changedKeySet;
-                let writeSet = this.#writeSet;
-                this.#writeSet = {};
-                this.#changedKeySet = {};
-                this.#changedKeySetTimeout = false;
-                console.log(writeSet);
-                const batch = writeBatch(db);
-                for (const id in changedKeySet) {
-                    const data = changedKeySet[id];
-                    this.#pushDocUpdate(id, data, batch);
-                    // console.log("Updating document:", id, JSON.stringify(data));
-                }
-                for (const id in writeSet) {
-                    const data = writeSet[id];
-                    this.#pushDocSet(id, data, batch);
-                    // console.log("Creating document:", id, JSON.stringify(data));
-                }
-                let c = async () => {
-                    try {
-                        await batch.commit();
-                    } catch (error) {
-                        console.warn("Error committing batch:", error);
-                    }
-                }
-                c();
-            })
+            await new Promise(resolve => window.requestAnimationFrame(resolve));
+
+            let changedKeySet = this.#changedKeySet;
+            let writeSet = this.#writeSet;
+
+            this.#writeSet = {};
+            this.#changedKeySet = {};
+            this.#changedKeySetTimeout = false;
+            
+            const batch = writeBatch();
+            for (const id in changedKeySet) {
+                const data = changedKeySet[id];
+                console.log(`Updating document ${id} with data: `, JSON.stringify(data, null, 2));
+                batch.update(doc(this.#collection, id), data);
+            }
+            for (const id in writeSet) {
+                const data = writeSet[id];
+                batch.set(doc(this.#collection, id), data);
+            }
+
+            try {
+                await batch.commit();
+            } catch (error) {
+                // Should probably back track changes here but for now just log the error
+                console.warn("Error committing batch:", error);
+            }
         }
     }
 
@@ -200,37 +161,40 @@ export class FStoreFileSystem extends FileSystem {
             return;
         }
 
-        const key = data.path;
-        const path = key2path(data.path);
+        let path = data.path
 
         const oldValue = this._get(path);
+
+        // A file with the same path but a different ID has been added, 
+        // which indicates a duplicate. We will rename the new 
+        // file to avoid conflicts.
         if (oldValue && oldValue.id !== doc.id) {
-            console.warn(`Document ID mismatch for path "${path}" this may indicate two documents with the same path.`);
+            path = duplicatePrefix(path);
+            console.warn(`OldValue ID (${oldValue.id}) does not match doc ID (${doc.id}) for path ${path}. This may indicate a data inconsistency.`);
+        }
+        
+        this.#key2docID[path] = doc.id;
+    
+        if (removed) {
+            data = null;
         } else {
-            this.#key2docID[key] = doc.id;
-    
-            if (removed) {
-                data = null;
-            } else {
-                delete data.path;
-                delete data.owner;
-                data.id = doc.id;
-            }
-    
-            let change = super._set(path, data);
-            if (change && triggerUpdate) {
-                this._onUpdate();
-                if (!this.#commitHistoryTimeout) {
-                    this.#commitHistoryTimeout = setTimeout(() => {
-                        this._commitHistory();
-                        this.#commitHistoryTimeout = null;
-                    }, this.#commitHistoryDelay);
-                }
+            delete data.path;
+            delete data.owner;
+            data.id = doc.id;
+        }
+
+        let change = super._set(path, data);
+        if (change && triggerUpdate) {
+            this._onUpdate();
+            if (!this.#commitHistoryTimeout) {
+                this.#commitHistoryTimeout = setTimeout(() => {
+                    this._commitHistory();
+                    this.#commitHistoryTimeout = null;
+                }, this.#commitHistoryDelay);
             }
         }
     }
     
-
     async watch() {
         const watchPromise = async () => {
             const q = query(this.#collection, where("owner", "==", this.#user), where("deletedAt", "==", false));
@@ -263,5 +227,4 @@ export class FStoreFileSystem extends FileSystem {
         this.#unsubscribe && this.#unsubscribe();
         this.#watchPromise = null;
     }
-
 }

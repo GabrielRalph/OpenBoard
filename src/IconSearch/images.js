@@ -4,10 +4,8 @@ import { OBImage } from "../openboard.js";
 
 FB.initialise();
 
-
-const db = FB.getFirestore();
 const { getCountFromServer, writeBatch, collection, query, where, and, or, onSnapshot, getDocs, doc, updateDoc, limit} = FB.FStore;
-const IconCollection = collection(db, "icons");
+const IconCollection = () => collection("icons");
 
 
 function uniqueImages(images) {
@@ -72,7 +70,7 @@ async function getNumberOfOwnedImages() {
 	const uid = user?.uid;
 	if (!uid) return 0;
 
-	const ownedQuery = query(IconCollection, where("uid", "==", uid));
+	const ownedQuery = query(IconCollection(), where("uid", "==", uid));
   	const snapshot = await getCountFromServer(ownedQuery);
 	const totalCount = snapshot.data().count;
 	return totalCount;
@@ -241,7 +239,6 @@ async function semanticSearch(text, includePublic = true) {
             return new Set(results.map(i => i.id));
         })();
         SemanticSearchCache[includePublic ? "public" : "user"][text] = prom;
-		console.log(`promise saver under ${includePublic ? "public" : "user"}/${text} = ${prom}`)
 
         images = await getResultsFromSemanticSearchCache(text, includePublic);
     }
@@ -286,8 +283,8 @@ async function queryImages(text, isEqual = false, includePublic = true) {
                 ) : where("uid", "==", uid);
             
             const textQuery = isEqual ?
-                query(IconCollection, and(where("name", "==", text), access), limit(SEARCH_MAX)) :
-                query(IconCollection, and(where("name", ">=", text), where("name", "<=", text + "\uf8ff"), access), limit(SEARCH_MAX));
+                query(IconCollection(), and(where("name", "==", text), access), limit(SEARCH_MAX)) :
+                query(IconCollection(), and(where("name", ">=", text), where("name", "<=", text + "\uf8ff"), access), limit(SEARCH_MAX));
             let prom = (async () => {
                 let docs = await getDocs(textQuery);
                 let images = docs.docs.map(doc => {

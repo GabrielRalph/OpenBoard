@@ -1,5 +1,7 @@
 import { unzip, zip } from './Utilities/zip/browser.js';
 
+
+
 /**
  * @typedef {[number, number]} Range
  * 
@@ -194,7 +196,7 @@ class OBImage extends OpenBoardObject {
         if (this.path) {
             return this.path;
         } else if (this.url) {
-            return this.url;
+            return this.url
         } else if (this.symbol) {
             const safe = this.symbol.path.split("/").map(encodeURIComponent).join("/");
             return "../IconSets/" + safe;
@@ -269,12 +271,12 @@ class OBAction {
 class OBButton extends OpenBoardObject {
 
     validate() {
-        if (Array.isArray(this.actions) && this.actions.length === 0 && this.load_board == null) {
-            let {utterance} = this;
-            if (typeof utterance === "string") {
-                this.actions = [new OBAction(utterance.length > 1 ? `&${utterance}` : `+${utterance}`)];
-            }
-        }
+        // if (Array.isArray(this.actions) && this.actions.length === 0 && this.load_board == null) {
+        //     let {utterance} = this;
+        //     if (typeof utterance === "string") {
+        //         this.actions = [new OBAction(utterance.length > 1 ? `&${utterance}` : `+${utterance}`)];
+        //     }
+        // }
     }
 
     /**
@@ -305,7 +307,12 @@ class OBButton extends OpenBoardObject {
      * The actions to perform when the button is pressed.
      * @type {OBAction[]} */
     actions = null;   
-    static actions_parser(value) { return (value ? (Array.isArray(value) ? value : [value]) : []).map(v => new OBAction(v)); }     
+    static actions_parser(value) { return (value ? (Array.isArray(value) ? value : [value]) : []).map(v => new OBAction(v)); }  
+    
+
+    action = null;
+    static action_parser(value) { return value ? new OBAction(value) : null; }  
+
     
     /**
      * A boolean indicating whether the button's 
@@ -379,13 +386,49 @@ class OBButton extends OpenBoardObject {
      *  @type {?number} */
     height = null;
 
+
+
+    get allActions() {
+        let actions = [];
+        if (this.action) {
+            actions.push(this.action);
+        }
+        if (Array.isArray(this.actions)) {
+            actions.push(...this.actions);
+        }
+        return actions;
+    }
+
+    get standardActions() {
+        const navActions = OBButton.navigationActions;
+        return this.allActions.filter(a => !(a.mode in navActions));
+    }
+
+    get navigationAction() {
+        let action = {mode: null, value: null};
+        if (this.load_board) {
+            action.mode = "load_board"
+            action.value = this.load_board
+        } else {
+            const navActions = OBButton.navigationActions;
+            for (let a of this.allActions) {
+               if (a.mode in navActions) {
+                    action.mode = navActions[a.mode];
+                    action.value = a.value;
+               }
+            }
+        }
+        return new OBAction(action);
+    }
+
+
     /**
      * The text to insert when the button is pressed,
      * which can be a string or an array of strings to insert with spaces.
      * @type {?string}
      */
     get textInserted() {
-        let textActions = this.actions.filter(a => a.mode === "insert_text").map(a => a.value);
+        let textActions = this.allActions.filter(a => a.mode === "insert_text").map(a => a.value);
         if (textActions.length > 0) {
             return textActions.join(" ");
         } else {
@@ -416,10 +459,16 @@ class OBButton extends OpenBoardObject {
             "text_color",
         ]
     }
+
+    static get navigationActions() {
+        return {
+            "home": "home",
+            "core": "home",
+            "back": "back", 
+            "return": "return", 
+        }
+    }
 }
-
-
-
 
 class OBGrid extends DataClass {
     /** 
@@ -535,6 +584,14 @@ class OBBoard extends OpenBoardObject {
 
 
     /**
+     * @returns {OBLoadBoard[]} An array of OBLoadBoard objects representing the linked boards.
+     */
+    get linkedBoards(){
+        return this.buttons.map(b => b.load_board).filter(load_board => load_board != null);
+    }
+
+
+    /**
      * Gets the locations of buttons in the grid,
      * if a button's ID appears contiguously in the grid, 
      * it is considered to occupy a rectangular area.
@@ -629,7 +686,6 @@ class OBBoard extends OpenBoardObject {
     }
 }
 
-
 class OBManifestPaths extends DataClass {
     /** 
      * A mapping of board IDs to their corresponding file paths in the manifest.
@@ -705,8 +761,6 @@ function dirname(path) {
     parts.pop();
     return parts.join("/") + (parts.length > 0 ? "/" : "");
 }
-
-
 
 
 class OBBoardManager extends DataClass {
@@ -870,4 +924,4 @@ class OBBoardManager extends DataClass {
     }
 }
 
-export { OBBoardManager, OBBoard, OBButton, OBImage, OBSymbol, OBLoadBoard };
+export { OBBoardManager, OBBoard, OBAction, OBButton, OBImage, OBSymbol, OBLoadBoard };

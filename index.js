@@ -51,8 +51,6 @@ export async function setup(url) {
         document.body.style.setProperty("--p", p);
     });
     aacBoard.manager = manager;
-    aacBoard 
-
     window.SquidlyAPI.firebaseOnValue("value1", value => {
         if (value) {
             aacBoard.state = JSON.parse(value);
