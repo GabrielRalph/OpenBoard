@@ -70,10 +70,19 @@ export class FStoreFileSystem extends FileSystem {
         });
     }
 
+
     _deleteFile(path, commitHistory = true) {
         let isChanged = super._deleteFile(path, commitHistory);
         if (isChanged) {
             this.#setPath(path, null);
+        }
+    }
+
+    _superSet(path, value, commitHistory = true) {
+        if (value === null) {
+            return super._deleteFile(path, commitHistory);
+        } else {
+            return super._set(path, value, commitHistory);
         }
     }
 
@@ -91,10 +100,9 @@ export class FStoreFileSystem extends FileSystem {
 
     #setPath(path, value, commitHistory = true) {
         const key = path.toString();
-        console.log("Setting path:", key, "value:", value);
         if (value === null) {
             const id = this.#key2docID[key];
-            this.#changedKeySet[id] = {deletedAt: Date.now()};
+            this.#changedKeySet[id] = {deletedAt: serverTimestamp()};
         } else {
             const update = Object.fromEntries(
                 Object.entries(VALID_KEYS)
@@ -113,7 +121,6 @@ export class FStoreFileSystem extends FileSystem {
                 
                 id = doc(this.#collection).id;
                 this._get(path).id = id; // Update the FStats instance with the new ID
-
                 this.#writeSet[id] = this._parseNewItem(path, update);
             } else {
                 this.#changedKeySet[id] = this._parseUpdateItem(path, update);
@@ -138,11 +145,12 @@ export class FStoreFileSystem extends FileSystem {
             const batch = writeBatch();
             for (const id in changedKeySet) {
                 const data = changedKeySet[id];
-                console.log(`Updating document ${id} with data: `, JSON.stringify(data, null, 2));
+                console.log("Updating document:", id, JSON.stringify(data, null, 2));
                 batch.update(doc(this.#collection, id), data);
             }
             for (const id in writeSet) {
                 const data = writeSet[id];
+                console.log("Writing document:", id, JSON.stringify(data, null, 2));
                 batch.set(doc(this.#collection, id), data);
             }
 
@@ -157,12 +165,8 @@ export class FStoreFileSystem extends FileSystem {
 
     #updateDoc(doc, removed = false, triggerUpdate = true) {
         let data = doc.data();
-        if (!data || !data.path || typeof data.path !== "string") {
-            return;
-        }
-
-        let path = data.path
-
+        if (!data || !data.path || typeof data.path !== "string") { return; }
+        let {path} = data;
         const oldValue = this._get(path);
 
         // A file with the same path but a different ID has been added, 
@@ -183,7 +187,7 @@ export class FStoreFileSystem extends FileSystem {
             data.id = doc.id;
         }
 
-        let change = super._set(path, data);
+        let change = this._superSet(path, data);
         if (change && triggerUpdate) {
             this._onUpdate();
             if (!this.#commitHistoryTimeout) {
@@ -207,7 +211,6 @@ export class FStoreFileSystem extends FileSystem {
                 this._discardCurrentHistory();
                 
                 this.#unsubscribe = onSnapshot(q, (snapshot) => {
-                    // console.log("Firestore snapshot received:", snapshot);
                     snapshot.docChanges().forEach((change) => {
                         this.#updateDoc(change.doc, change.type === "removed");
                     });

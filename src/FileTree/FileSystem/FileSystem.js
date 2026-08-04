@@ -37,7 +37,7 @@ function deepCopy(obj) {
 }
 
 
-class ChangeExecuter {
+export class ChangeExecuter {
     /** @type {boolean} */
     conflict = false;
 

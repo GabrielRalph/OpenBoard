@@ -10,23 +10,79 @@ let styleSheetsLoader = await OpenBoardEditor.loadStyleSheets()
 OpenBoardEditor.defineHTMLElement(OpenBoardEditor);
 const editor = document.querySelector("open-board-editor");
 
+/** @type {BoardWatcher } */
 let boardWatcher = null;
+
+
+let updateTimeout = null;
 async function editBoard(boardID) {
     if (boardWatcher) {
+        if (updateTimeout) {
+            clearTimeout(updateTimeout);
+            updateTimeout = null;
+        }
         boardWatcher.stop();
         boardWatcher = null;
     }
 
-    boardWatcher = new BoardWatcher(boardID, (state) => {
-        console.log("Board state changed", state);
-        const { board, metadata, isDraft } = state;
-        if (board) {
-            editor.metadata = metadata;
-            editor.isDraftVersion = isDraft;
-            editor.board = board;
+    let canSave = false;
+    let canSaveDraft = false;
+    function updateSaveStatus() {
+        const editorBoard = editor.board;
+        const draftBoard = boardWatcher?.draft;
+        const savedBoard = boardWatcher?.board;
+
+        let newCanSave = !editorBoard.same(savedBoard);
+        let change = newCanSave !== canSave;
+        canSave = newCanSave;
+        canSaveDraft = !editorBoard.same(draftBoard);
+        console.log(`update status: canSave=${canSave}, canSaveDraft=${canSaveDraft}`)
+		editor.titleNote.innerHTML = canSaveDraft ? "*" : "&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;Draft Saved"
+        if (change) {
+            editor.forceUpdate();
         }
+    }
+
+    function updateTitle() {
+        let path = boardWatcher?.metadata.path;
+		path = path ? "&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;<b>" + path.replace(/\\/g, " ▸ ") + "<b/>" : "";
+		editor.titleSpan.innerHTML = "Squidly Board Editor" + path;
+    }
+
+    editor.getIsSaveable = () => {
+        return canSave;
+    }
+
+    editor.onUpdate = (board) => {
+        updateSaveStatus();
+
+        if (updateTimeout) {
+            clearTimeout(updateTimeout);
+        }
+        updateTimeout = setTimeout(() => {
+            if (boardWatcher && canSaveDraft && !editor.editingLabel) {
+                boardWatcher.updateDraft(board);
+            }
+        }, 10000);
+    }
+
+    let started = false;
+    boardWatcher = new BoardWatcher(boardID, () => {
+        const { currentBoard, board, metadata, draft } = boardWatcher;
+        if (!started) {
+            started = true;
+            editor.board = currentBoard;
+        } else {
+            editor.updateBoard(currentBoard);
+        }
+        updateTitle();
+        updateSaveStatus();
     });
-    await boardWatcher.start();
+    await boardWatcher.watch();
+
+    editor.clearChanges = () => {
+        editor.updateBoard(boardWatcher.board);
+    }
 }
 
 async function onUserChange(user) {

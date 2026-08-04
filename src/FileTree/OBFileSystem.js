@@ -1,4 +1,4 @@
-import { FStats } from "./FileSystem/FileSystem.js";
+import { ChangeExecuter, FStats } from "./FileSystem/FileSystem.js";
 import { FStoreFileSystem } from "./FileSystem/FStoreFileSystem.js";
 import { Path } from "./FileSystem/path.js";
 export class OBFStat extends FStats {
@@ -48,7 +48,6 @@ export class OBFStat extends FStats {
 
     getEffectivePublic(fs) {
         let result = false;
-
         if (this.contents && this.contents.public) {
             result = true;
         } else if (this.path.length > 1) {
@@ -58,7 +57,7 @@ export class OBFStat extends FStats {
                 result = stat.getEffectivePublic(fs);
             }
         }
-        
+    
         return result;
     }
 
@@ -84,15 +83,38 @@ export class OBFileSystem extends FStoreFileSystem {
     _parseNewItem(path, contents) {
         contents.favourite = contents.favourite || false;
         contents.public = contents.public || false;
-        contents.effectivePublic = contents.effectivePublic || false;
+        contents.effectivePublic = !contents.isDirectory && this.stat(path).getEffectivePublic(this);
         contents.updatedAt = null;
+        contents.deletedAt = false;
+        console.log("Parsed new item at path:", path, "with contents:", JSON.stringify(contents, null, 2));
         return contents;
     }
+
     _parseUpdateItem(path, update) {
         delete update.isDirectory
         return update;
     }
         
+    /**
+     * @param {string|Path} path the path to check for existence
+     * @returns {ChangeExecuter} returns a ChangeExecuter object that can be used to execute the change.
+     */
+    getCreateBoardExecuter(path) {
+        let result = new ChangeExecuter();
+        let fstat = this.stat(path);
+        if (fstat !== null) {
+            result.conflict = true;
+        } else {
+            result.execute = async () => {
+                let values = { isDirectory: false }
+                console.log("Creating board at path:", path, "with values:", values);
+                this._set(path, values);
+                this._commitHistory();
+                this._onUpdate();
+            }
+        }
+        return result;
+    }
 
     getMoveExecuter(oldPath, newPath) {
         let result = super.getMoveExecuter(oldPath, newPath);

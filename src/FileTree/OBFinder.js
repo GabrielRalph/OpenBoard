@@ -19,6 +19,11 @@ class OBFSColumn extends FSColumn {
                     icon: "<i-bw new-folder></i-bw>",
                     action: () => {root.newFolder(fstat.path)}
                 },
+                {
+                    label: "New Board",
+                    icon: "<i-bw new-grid></i-bw>",
+                    action: () => {root.newBoard(fstat.path)}
+                },
                 "seperator",
                 ...(fstat.isBoard ? [
                     fstat.isFavourite ?  {
@@ -104,6 +109,11 @@ class OBFileIcon extends FSFileIcon {
                     label: "New Folder",
                     icon: "<i-bw new-folder></i-bw>",
                     action: () => {root.newFolder(fstat.path)}
+                },
+                {
+                    label: "New Board",
+                    icon: "<i-bw new-grid></i-bw>",
+                    action: () => {root.newBoard(fstat.path)}
                 },
                 "seperator",
                 ...(fstat.isBoard ? [
@@ -197,21 +207,20 @@ class OBFileViewer extends SvgPlus {
     async loadBoard(id, root) {
         if (this._loadedBoardID === id) return;
         this._loadedBoardID = id;
-        const board = await getBoard(id, null, (board) => {
-            this.innerHTML = "";
-            let a = this.createChild(AACGrid);
-            a.board = board;
-            a.addEventListener("aac-click", e => {
-                let button = e.button;
-                if (button.load_board) {
-                    let id = button.load_board.id;
-                    let files = root.fs.searchFiles(f => f.id === id);
-                    if (files.length > 0) {
-                        root.select(new Path(files[0].path));
-                    }
+        const board = await getBoard(id);
+        this.innerHTML = "";
+        let a = this.createChild(AACGrid);
+        a.board = board;
+        a.addEventListener("aac-click", e => {
+            let button = e.button;
+            if (button.load_board) {
+                let id = button.load_board.id;
+                let files = root.fs.searchFiles(f => f.id === id);
+                if (files.length > 0) {
+                    root.select(new Path(files[0].path));
                 }
-            })
-        });
+            }
+        })
     }
 }
 
@@ -256,6 +265,27 @@ export class OBFinder extends FileSystemUI {
         "Meta+y": e => {
             if (this.fs) {
                 this.fs.redo();
+            }
+        }
+    }
+
+
+    async newBoard(path) {
+        path = path instanceof Path ? path : new Path(path);
+        let newName = await this.prompt({
+            message: `New board name:`, 
+            defaultValue: "New Board", 
+            yesValue: "Create", 
+            noValue: "Cancel",
+            validator: (value) => value.indexOf("\\") === -1 ? true : "Board name cannot contain '\\'"
+        });
+        if (newName) {
+            let newPath = path.join(newName);
+            const result = this.fs.getCreateBoardExecuter(newPath);
+            if (result.conflict) {
+                this.confirm(`An item named “${newName}” already exists in this location!`, [["Cancel"]])
+            } else {
+                result.execute();
             }
         }
     }

@@ -3,7 +3,7 @@ import { delay, ShadowElement, SvgPlus } from "../Utilities/utils.js";
 import { AACEditorGrid, OBBoardEditable } from "./aac-editable.js";
 import { ColorPicker } from "../Utilities/color-picker.js";
 import { FastFindImageList, ImageFinder } from "../IconSearch/image-finder.js";
-import { OBAction, OBLoadBoard } from "../openboard.js";
+import { OBAction, OBBoard, OBLoadBoard } from "../openboard.js";
 import { ActionsPanel, NavigationPanel } from "./editor-actions.js";
 import { Icon } from "../Utilities/icons.js";
 import { BoardFinder } from "./editor-finder.js";
@@ -334,7 +334,13 @@ const TOP_TOOLS = [
 const TOP_TOOLS_STATIC = [
     {
         name: "save",
-        icon: "e-save"
+        icon: "e-save",
+		onSelection(editor) {
+			this.toggleAttribute("disabled", !editor.isSaveable);
+		},
+		onClick(editor) {
+
+		}
     },
     {
         name: "undo",
@@ -359,7 +365,17 @@ const TOP_TOOLS_STATIC = [
         onClick(editor) {
             editor.redo();
         }
-    }
+    },
+	{
+		name: "clearChanges",
+		icon: "e-delete",
+		onSelection(editor) {
+			this.toggleAttribute("disabled", !editor.isSaveable);	
+		},
+		onClick(editor) {
+			editor.clearChanges();
+		}
+	}
 ]
 const KEY_BINDINGS = {
     /** 
@@ -641,6 +657,8 @@ class OpenBoardEditor extends ShadowElement {
     #dropDown = null;
     #dropDownPromise = null;
     #dropDownTool = null;
+	
+	#editingLabel = false;
 
     #topTools = null;
     #buttonTools = null;
@@ -659,9 +677,18 @@ class OpenBoardEditor extends ShadowElement {
 		head.createChild(Icon, {
 			class: "logo"
 		}, "logo-banner")
+
+		this.titleNameSpan = head.createChild("span", {
+			class: "title-name",
+			content: "Squidly Board Editor"
+		})
 		this.titleSpan = head.createChild("span", {
 			class: "title",
-			content: "Squidly Board Editor"
+			content: ""
+		})
+		this.titleNote = head.createChild("span", {
+			class: "title-note",
+			content: ""
 		})
 
         let tools = this.createChild(GridTools, {}, this)
@@ -726,7 +753,16 @@ class OpenBoardEditor extends ShadowElement {
         }
         this.tools.updateSelection(this.selection);
 		this.sidePanel.updateSelection();
+		if (this.onUpdate instanceof Function) {
+			this.onUpdate();
+		}
     }
+
+	forceUpdate() {
+        this.grid.board = this.#board;
+		this.tools.updateSelection(this.selection);
+		this.sidePanel.updateSelection();
+	}
 
 
     /* ~~~~~~~~~~~~~~~~~~~~~~~~~~ HELPER METHODS ~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -787,6 +823,12 @@ class OpenBoardEditor extends ShadowElement {
 		return fstat?.path
 	}
 
+
+	save() {
+		if (this.onSave instanceof Function) {
+			this.onSave(this.#board);
+		}
+	}
 
 
     /* ~~~~~~~~~~~~~~~~~~~~~~~~~~ NAVIGATION ~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -1152,9 +1194,12 @@ class OpenBoardEditor extends ShadowElement {
 
 
     async editLabel(id) {
+		this.#editingLabel = true;
         let newValue = await this.grid.editLabel(id, (value) => {
             this.#triggerImageSearchUpdate(value);
+			this.#editingLabel = false;
         });
+
         if (newValue !== undefined) {
             this.#board.getButtonByID(id).label = newValue;
             this.#updateBoard();
@@ -1169,10 +1214,19 @@ class OpenBoardEditor extends ShadowElement {
 		}
 	}
 
-	set metadata(metadata) {
-		let path = metadata.path;
-		path = path ? " - " + path.replace(/\\/g, " ▸ ") : "";
-		this.titleSpan.textContent = "Squidly Board Editor" + path;
+
+	clearChanges() {
+	}
+
+	get editingLabel() {
+		return this.#editingLabel;
+	}
+
+	get isSaveable() {
+		if (this.getIsSaveable instanceof Function) {
+			return this.getIsSaveable();
+		}
+		return true;
 	}
 
     get boardRows() {
@@ -1188,6 +1242,10 @@ class OpenBoardEditor extends ShadowElement {
 		this.#history = [];
 		this.#historyIndex = 1;
 		this.#updateBoard();
+	}
+
+	get board() {
+		return OBBoard.make(this.#board);
 	}
 
     /**

@@ -1,5 +1,10 @@
 import { unzip, zip } from './Utilities/zip/browser.js';
 
+function array2D(rows, columns, fillValue = null) {
+    let func = fillValue instanceof Function ? fillValue : () => fillValue;
+    const order = Array.from({length: rows}, (_, r) => Array.from({length: columns}, (_, c) => fillValue(r, c)));
+    return order;
+}
 
 
 /**
@@ -41,6 +46,47 @@ async function loadFile(url, type = "text", onprogress = () => {}) {
         xhr.send();
     });
 }
+
+function deepCompare(obj1, obj2) {
+    if (typeof obj1 !== typeof obj2) {
+        return false;
+    }
+    if (obj1 && obj2 && typeof obj1 === 'object') {
+        const keys1 = Object.keys(obj1);
+        const keys2 = Object.keys(obj2);
+        if (keys1.length !== keys2.length) {
+            return false;
+        }
+        for (let key of keys1) {
+            if (!deepCompare(obj1[key], obj2[key])) return false;
+        }
+        return true;
+    }
+    return obj1 === obj2;
+}
+
+function findFirstDifference(obj1, obj2, path = "") {
+    if (typeof obj1 !== typeof obj2) {
+        return [path, obj1, obj2];
+    }
+
+    if (obj1 && obj2 && typeof obj1 === 'object') {
+        const keys1 = Object.keys(obj1);
+        const keys2 = Object.keys(obj2);
+        if (keys1.length !== keys2.length) {
+            return [path, obj1, obj2];
+        }
+
+        for (let key of keys1) {
+            let res = findFirstDifference(obj1[key], obj2[key], path ? `${path}.${key}` : key);
+            if (res) return res;
+        }
+        return null;
+    }
+
+    return obj1 === obj2 ? null : [path, obj1, obj2];
+}
+ 
 
 class DataClass {
     /**
@@ -87,20 +133,29 @@ class DataClass {
         return this.make(data);
     }
 
-
     toJSON() {
         let json = {}
+        let blank = new this.constructor();
         for (let key in this) {
             let value = this[key];
+            let dValue = blank[key];
             if (!(value instanceof Function)) {
                 if (value instanceof DataClass) {
                     json[key] = value.toJSON();
-                } else {
+                } else if (dValue === undefined || !deepCompare(value, dValue)) {
                     json[key] = value;
                 }
             }
         }
         return json;
+    }
+
+    same(other) {
+        return deepCompare(this, other);
+    }
+
+    diff(other) {
+        return findFirstDifference(this, other);
     }
 }
 
@@ -270,15 +325,6 @@ class OBAction {
 
 class OBButton extends OpenBoardObject {
 
-    validate() {
-        // if (Array.isArray(this.actions) && this.actions.length === 0 && this.load_board == null) {
-        //     let {utterance} = this;
-        //     if (typeof utterance === "string") {
-        //         this.actions = [new OBAction(utterance.length > 1 ? `&${utterance}` : `+${utterance}`)];
-        //     }
-        // }
-    }
-
     /**
      * The font size of the button's text, which can be one of the following values:
      * "huge", "large", "medium", "small", or "tiny".
@@ -307,7 +353,13 @@ class OBButton extends OpenBoardObject {
      * The actions to perform when the button is pressed.
      * @type {OBAction[]} */
     actions = null;   
-    static actions_parser(value) { return (value ? (Array.isArray(value) ? value : [value]) : []).map(v => new OBAction(v)); }  
+    static actions_parser(value) { 
+        let actions = (value ? (Array.isArray(value) ? value : [value]) : []).map(v => new OBAction(v)); 
+        if (actions.length === 0) {
+            actions = null;
+        }
+        return actions;
+    }  
     
 
     action = null;
@@ -387,6 +439,16 @@ class OBButton extends OpenBoardObject {
     height = null;
 
 
+    /**
+     * Returns whether the button is considered "empty",
+     * @returns {boolean} true if the button has no label, image, or background color; false otherwise.
+     */
+    get hidden() {
+        let noLabel = typeof this.label !== "string" || this.label.length == 0
+        let noImage = typeof this.image_id !== "string" || this.image_id.length == 0
+        let noBackground = typeof this.background_color !== "string" || this.background_color.length == 0
+        return noBackground && noImage && noLabel;
+    }
 
     get allActions() {
         let actions = [];
@@ -448,6 +510,19 @@ class OBButton extends OpenBoardObject {
         return this.vocalization || this.textInserted || this.label
     }
 
+
+    static newID() {
+        return Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
+    }
+
+    static makeEmptyButton() {
+        return this.make({
+            id: OBButton.newID(),
+            label: "",
+            image_id: null,
+            load_board: null,
+        });
+    }
 
     static get styleProperties() {
         return [
@@ -536,7 +611,6 @@ class OBBoard extends OpenBoardObject {
      * @type {?string} */
     description_html = null;  
     
-    
    
     /** 
      * A URL to load the board from, which can be used 
@@ -555,7 +629,17 @@ class OBBoard extends OpenBoardObject {
      * where each button is an instance of OBButton.
      *  @type {OBButton[]} */
     buttons = [];      
-    static buttons_parser(value) { return value ? value.map(b => OBButton.make(b)) : []; }         
+    static buttons_parser(value) { 
+        let buttons = []
+        if (value) {
+            if (!Array.isArray(value)) {
+                throw new Error("Buttons must be an array");
+            } else {
+                buttons = value.map(b => OBButton.make(b)).filter(b => b.hidden === false);
+            }
+        }
+        return buttons
+    }         
     
     /** 
      * The list of images used on the board, 
@@ -658,7 +742,10 @@ class OBBoard extends OpenBoardObject {
 
 
     validate() {
+        // Remove any button IDs from the grid that do not correspond 
+        // to existing buttons or are considered hidden. 
         const buttonIDs = new Set(this.buttons.map(b => b.id));
+
         const order = this.grid.order;
         for (let row of order) {
             for (let i = 0; i < row.length; i++) {
@@ -674,6 +761,24 @@ class OBBoard extends OpenBoardObject {
                 button.image_id = null;
             }
         }
+    }
+
+
+     /**
+     * @param {number} rows
+     * @param {number} columns
+     * @param {string} id - Optional ID for the new board. If not provided, a new ID will be generated.
+     * @returns {OBBoardEditable}
+     */
+    static makeEmptyBoard(rows, columns, id = OBButton.newID()) {
+        const buttons = new Array(rows * columns).fill(0).map(() => OBButton.makeEmptyButton());
+        const order = array2D(rows, columns, (r,c) => buttons[r * columns + c].id);
+        return this.make({
+            id: id,
+            name: "empty board",
+            grid: {rows, columns, order: buttons.map(b => b.id)},
+            buttons: buttons,
+        });
     }
 
 

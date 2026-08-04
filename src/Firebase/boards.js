@@ -3,9 +3,25 @@ import { OBBoard, OBBoardManager } from "../openboard.js";
 import { FirestoreFrame } from "./firestore-frame.js";
 
 const BOARD_CACHE = {};
+const BOARD_LISTENERS = {}
+const BOARD_META_CACHE = {};
 const META = new FirestoreFrame("boards");
 const DRAFTS = new FirestoreFrame("draft-boards");
 
+
+function isNewer(a, b) {
+    if (a.seconds > b.seconds) {
+        return true
+    } else if (a.seconds < b.seconds) {
+        return false;
+    } else {
+        if (a.nanoseconds > b.nanoseconds) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
 
 /**
  * @param {string} id
@@ -26,32 +42,53 @@ async function _loadBoard(id) {
     return board;
 }
 
+async function _getSquidlyBoard(id) {
+    if (!(id in BOARD_LISTENERS)) {
+        try {
+            BOARD_LISTENERS[id] = await META.onValuePromise(id, async (data) => {
+                BOARD_META_CACHE[id] = data;
+            });
+        } catch (e) {
+            console.warn(`Error listening to board ${id}:`, e);
+        }
+    }
+
+    let board = null;
+    if (!BOARD_META_CACHE[id]) {
+        // The doesn't board exists
+        console.warn(`Board ${id} does not exist`);
+    } else if (BOARD_META_CACHE[id].updatedAt == null) {
+        // Board has not been created yet
+        console.warn(`Board ${id} has not been created yet`);
+    } else {
+        // If the board is not in the cache, or if the board has 
+        // been updated since it was last cached, load it from the server
+        if (!(id in BOARD_CACHE) || isNewer(
+            BOARD_META_CACHE[id].updatedAt, 
+            BOARD_CACHE[id].lastUpdated)
+        ) {
+            BOARD_CACHE[id] = {
+                board: _loadBoard(id), 
+                lastUpdated: BOARD_META_CACHE[id].updatedAt
+            };
+        }
+        board = await BOARD_CACHE[id].board;
+    }
+    return board;
+}
+
+
 /**
  * @param {string} id
- * @param {number} lastUpdated time stampe
- * @param {(board: OBBoard) => void} onBoard
  * 
  * @returns {Promise<OBBoard>}
  */
-async function getBoard(id, lastUpdated, onBoard = () => {}) {
-    let board = null;
-    if (id in BOARD_CACHE) {
-        if (typeof lastUpdated === "number" && BOARD_CACHE[id].lastUpdated < lastUpdated) {
-            onBoard(BOARD_CACHE[id].board);
-            board = await _loadBoard(id);
-            BOARD_CACHE[id] = {board, lastUpdated};
-            onBoard(board);
-        } else {
-            board = BOARD_CACHE[id].board;
-            onBoard(board);
-        }
+async function getBoard(id) {
+    if (id.startsWith("http")) {
+        return await _loadBoard(id);
     } else {
-        board = await _loadBoard(id);
-        lastUpdated = lastUpdated || Date.now();
-        BOARD_CACHE[id] = {board, lastUpdated};
-        onBoard(board);
+        return await _getSquidlyBoard(id);
     }
-    return board;
 }
 
 async function downloadBoardSet(rootID) {
@@ -106,13 +143,18 @@ class BoardWatcher {
         this.callback = callback;
     }
 
+    log(...args) {
+        console.log(`%cBW-[${this.id.slice(-5)}]`, "background: black; color: orange; padding: 5px; border-radius: 5px;", ...args);
+    }
+
     stop() {
         this.#enders.forEach(end => end());
     }
 
     async watch() {
-        this.#enders = await Promise.all([
-            DRAFTS.onValuePromise(id, async (data) => {
+        this.log("Starting watch");
+        this.#enders = (await Promise.all([
+            DRAFTS.onValuePromise(this.id, (data) => {
                 this.draft = null;
                 if (data) {
                     try {
@@ -122,43 +164,64 @@ class BoardWatcher {
                     }
                     this.version = data.version;
                 }
-                this.#call();
+                this.call();
             }),
-            META.onValuePromise(id, async (data) => {
+            META.onValuePromise(this.id, async (data) => {
+                this.log("Meta data changed");
                 if (data) {
                     // Implement logic to handle if the board file has been 
                     // updated since the last time it was loaded
                     this.metadata = data;
+                    this.exists = true;
                 } else {
                     this.exists = false;
                 }     
-                this.#call();
+                this.call();
             }),
             this.#getBoardFile()
-        ]).slice(0, 2);
+        ])).slice(0, 2);
 
         if (!this.exists) {
             throw new Error("Board does not exist");
         }
         this.#initalised = true;
-        this.#call();
+        this.call();
     }
 
     async #getBoardFile() {
-        let board = await getBoard(id, Date.now())
-        this.board = board;
+        let board = await getBoard(this.id)
+        this.board = board || OBBoard.makeEmptyBoard(4, 5, this.id);
+        this.log("Board file loaded", board);
     }
 
-    updateDraft(data) {
-        await DRAFTS.set(this.id, {
+
+    async save(data) {
+        await this.updateDraft(data);
+        FB.callFunction('')
+    }
+
+    async updateDraft(data) {
+        let update = {
             board: JSON.stringify(OBBoard.make(data)),
-            version: (DRAFT_VERSION_CACHE[id] || 0) + 1
-        });
+            version: (this.version || 0) + 1
+        }
+        this.log("Updating draft");
+        await DRAFTS.set(this.id, update);
     }
   
-    #call() { 
+    call() { 
         if (this.#initalised && this.callback instanceof Function) {
             this.callback();
+        }
+    }
+
+    get currentBoard() {
+        if (this.draft) {
+            return this.draft;
+        } else if (this.board) {
+            return this.board;
+        } else {
+            return OBBoard.makeEmptyBoard(4, 5, this.id);
         }
     }
 

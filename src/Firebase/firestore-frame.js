@@ -17,14 +17,17 @@ class FirestoreFrame {
     }
 
 
-    onValue(id, callback) {
+    onValue(id, callback, errorCallback) {
         const docRef = this.doc(id);
-        const end = FStore.onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
-                callback(docSnap.data());
-            } else {
-                callback(null);
-            }
+        const end = FStore.onSnapshot(docRef, {
+            next: (docSnap) => {
+                if (docSnap.exists()) {
+                    callback(docSnap.data());
+                } else {
+                    callback(null);
+                }
+            },
+            error: errorCallback
         });
         this.listenerTerminators.add(end);
         return () => {
@@ -37,11 +40,9 @@ class FirestoreFrame {
         let end;
         await new Promise((resolve, reject) => {
             end = this.onValue(id, (data) => {
-                if (data) {
-                    callback(data);
-                    resolve();
-                }
-            });
+                callback(data);
+                resolve();
+            }, reject);
         });
         return end;
     }

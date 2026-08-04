@@ -1,15 +1,5 @@
 import { OBBoard, OBButton } from "../openboard.js";
 
-function array2D(rows, columns, fillValue = null) {
-    let func = fillValue instanceof Function ? fillValue : () => fillValue;
-    const order = Array.from({length: rows}, (_, r) => Array.from({length: columns}, (_, c) => fillValue(r, c)));
-    return order;
-}
-
-function newButtonID() {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
-}
-
 
 class ActionsSimple {
     clearText = { 
@@ -183,22 +173,6 @@ class OBButtonEditable extends OBButton {
 
     #storedActionsSimple = null;
 
-    get hidden() {
-        let noLabel = typeof this.label !== "string" || this.label.length == 0
-        let noImage = typeof this.image_id !== "string" || this.image_id.length == 0
-        let noBackground = typeof this.background_color !== "string" || this.background_color.length == 0
-        return noBackground && noImage && noLabel;
-    }
-
-    static makeEmptyButton() {
-        return OBButtonEditable.make({
-            id: newButtonID(),
-            label: "",
-            image_id: null,
-            load_board: null,
-        });
-    }
-
     clear() {
         this.assign(OBButtonEditable.make({
             id: "x",
@@ -210,7 +184,7 @@ class OBButtonEditable extends OBButton {
 
 
     refreshID() {
-        this.id = newButtonID();
+        this.id = OBButton.newID();
     }
 
 
@@ -242,7 +216,6 @@ class OBButtonEditable extends OBButton {
         }
     }
 
-
     get actionsSimple() {
         if (this.#storedActionsSimple === null) {
             let actions = new ActionsSimple();
@@ -258,12 +231,7 @@ class OBButtonEditable extends OBButton {
     }
 
     toJSON() {
-        const json = {};
-        for (const key in this) {
-            if (!(this[key] instanceof Function)) {
-                json[key] = this[key];
-            }
-        }
+        const json = super.toJSON();
         this.actionsSimple.applyTo(json);
         return json;
     }
@@ -283,21 +251,6 @@ class OBBoardEditable extends OBBoard {
         return buttonIDs.map(id => buttonsByID[id]).filter(b => b !== undefined);
     }
 
-    /**
-     * @param {number} rows
-     * @param {number} columns
-     * @returns {OBBoardEditable}
-     */
-    static makeEmptyBoard(rows, columns) {
-        const buttons = new Array(rows * columns).fill(0).map(() => OBButtonEditable.makeEmptyButton());
-        const order = array2D(rows, columns, (r,c) => buttons[r * columns + c].id);
-        return this.make({
-            id: newButtonID(),
-            name: "b",
-            grid: {rows, columns, order: buttons.map(b => b.id)},
-            buttons: buttons,
-        });
-    }
 
     /**
      * @param {string[]} selection array of button IDs to get the locations of
@@ -531,6 +484,7 @@ class OBBoardEditable extends OBBoard {
 
 
     validate() {
+        // Turn null spaces to empty buttons
         this.grid.order = this.grid.order.map(r => r.map(buttonID => {
             if (!buttonID) {
                 let button = OBButtonEditable.makeEmptyButton()

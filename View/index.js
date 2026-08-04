@@ -1,6 +1,6 @@
 import { AACBoard, AACGrid, AACGridWrapper } from "../src/AACWebComponent/aac.js";
 import { OBBoardManager } from "../src/openboard.js";
-import { downloadBoardSet, getBoard } from "../src/Firebase/boards.js";
+import { BoardWatcher, downloadBoardSet, getBoard } from "../src/Firebase/boards.js";
 import * as FB from "../src/Firebase/firebase.js";
 
 FB.initialise();
@@ -59,18 +59,34 @@ async function setupBoard(rootID) {
     });
 }
 
-function setupPreview(rootID) {
+function setupPreview(rootID, isDraft) {
     document.body.toggleAttribute("preview", true);
     AACGridWrapper.defineHTMLElement(AACGridWrapper, "aac-board-preview");
     const aacBoard = document.querySelector("aac-board-preview");
 
     let LAST_BOARD_ID = null;
+    let lastWatcher = null;
     async function setBoard(d) {
         if (d === LAST_BOARD_ID) return;
         LAST_BOARD_ID = d;
         document.body.toggleAttribute("loaded", false);  
-        let board = await getBoard(d, Date.now());
-        aacBoard.board = board;
+        if (isDraft) {
+            console.log("WATCHING BOARD", d)
+            if (lastWatcher) {
+                lastWatcher.stop();
+                lastWatcher = null;
+            }
+            lastWatcher = new BoardWatcher(d, () => {
+                const { board, draft } = lastWatcher;
+                aacBoard.board = draft || board;
+            });
+            await lastWatcher.watch();
+        } else {
+            let board = await getBoard(d, Date.now());
+            aacBoard.board = board;
+        }
+
+
         document.body.toggleAttribute("loaded", true);  
     }
 
@@ -82,6 +98,7 @@ function setupPreview(rootID) {
         }
     })
 }
+
 
 export async function setup() {
 
@@ -97,7 +114,9 @@ export async function setup() {
     if (mode === "default") {
         setupBoard(rootID);
     } else if (mode === "preview") {
-        setupPreview(rootID);
+        setupPreview(rootID, false);
+    } else if (mode === "preview-draft") {
+        setupPreview(rootID, true);
     }
     document.body.toggleAttribute("loaded", true);    
 }
