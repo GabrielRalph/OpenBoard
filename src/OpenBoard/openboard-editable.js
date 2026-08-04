@@ -1,5 +1,4 @@
-import { OBBoard, OBButton } from "../openboard.js";
-
+import { OBBoard, OBButton } from "./openboard.js";
 
 class ActionsSimple {
     clearText = { 

@@ -1,4 +1,4 @@
-import { OBBoard, OBButton, OBImage } from "../openboard.js";
+import { OBBoard, OBButton, OBImage } from "../OpenBoard/openboard.js";
 import { AccessEvent, AccessTextArea, GridIcon, GridLayout, ShadowElement, SvgPlus } from "../Utilities/utils.js";
 import { Color } from "../Utilities/color.js";
 function relTo(path, from = "../Utilities", base = "https://session.squidly.com.au/main/") {

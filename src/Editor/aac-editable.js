@@ -1,7 +1,7 @@
 import { AACBoard, AACButton, AACClick, AACGrid } from "../AACWebComponent/aac.js";
 import { AccessEvent, GridIcon, GridLayout, ShadowElement, SvgPlus } from "../Utilities/utils.js";
-import { OBBoard } from "../openboard.js";
-import { OBBoardEditable } from "./openboard-editable.js";
+import { OBBoard } from "../OpenBoard/openboard.js";
+import { OBBoardEditable } from "../OpenBoard/openboard-editable.js";
 
 /**
  * Editor AAC Variations

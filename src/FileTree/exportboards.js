@@ -1,4 +1,4 @@
-import { OBBoard, OBBoardManager, OBLoadBoard } from "../openboard.js";
+import { OBBoard, OBBoardManager, OBLoadBoard } from "../OpenBoard/openboard.js";
 import { Path, PS, FStats } from "./FileSystem/FileSystem.js";
 import { FirebaseFrame } from "../Firebase/firebase-frame.js";
 import * as FB from "../Firebase/firebase.js";

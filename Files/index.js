@@ -1,6 +1,6 @@
 import { OBFileSystem, OBFStat } from "../src/FileTree/OBFileSystem.js";
 import { OBFinder } from "../src/FileTree/OBFinder.js";
-import { OBLoadBoard } from "../src/openboard.js";
+import { OBLoadBoard } from "../src/OpenBoard/openboard.js";
 import { ShadowElement } from "../src/Utilities/utils.js";
 import { initialise, addAuthChangeListener } from "../src/Firebase/firebase.js";
 

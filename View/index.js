@@ -1,5 +1,4 @@
 import { AACBoard, AACGrid, AACGridWrapper } from "../src/AACWebComponent/aac.js";
-import { OBBoardManager } from "../src/openboard.js";
 import { BoardWatcher, downloadBoardSet, getBoard } from "../src/Firebase/boards.js";
 import * as FB from "../src/Firebase/firebase.js";
 

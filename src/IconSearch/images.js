@@ -1,6 +1,6 @@
 
 import * as FB from "../Firebase/firebase.js";
-import { OBImage } from "../openboard.js";
+import { OBImage } from "../OpenBoard/openboard.js";
 
 FB.initialise();
 

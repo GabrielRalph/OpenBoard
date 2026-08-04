@@ -1,5 +1,5 @@
 import { SvgPlus } from "../Utilities/utils.js";
-import { OBImage } from "../openboard.js";
+import { OBImage } from "../OpenBoard/openboard.js";
 import { addRecentImage, getRecentImages, textSearch, semanticSearch, getNumberOfOwnedImages, addMyIconCountWatcher, uniqueImages, uploadImage } from "./images.js";
 
 const MAX_FILE_SIZE = 150 * 1024;

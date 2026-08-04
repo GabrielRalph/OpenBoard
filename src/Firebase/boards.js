@@ -1,6 +1,7 @@
 import * as FB from "./firebase.js";
-import { OBBoard, OBBoardManager } from "../openboard.js";
+import { OBBoard } from "../OpenBoard/openboard.js";
 import { FirestoreFrame } from "./firestore-frame.js";
+import { OBBoardManager } from "../OpenBoard/openboard-manager.js";
 
 const BOARD_CACHE = {};
 const BOARD_LISTENERS = {}

@@ -3,7 +3,7 @@ import { delay, ShadowElement, SvgPlus } from "../Utilities/utils.js";
 import { AACEditorGrid, OBBoardEditable } from "./aac-editable.js";
 import { ColorPicker } from "../Utilities/color-picker.js";
 import { FastFindImageList, ImageFinder } from "../IconSearch/image-finder.js";
-import { OBAction, OBBoard, OBLoadBoard } from "../openboard.js";
+import { OBAction, OBBoard, OBLoadBoard } from "../OpenBoard/openboard.js";
 import { ActionsPanel, NavigationPanel } from "./editor-actions.js";
 import { Icon } from "../Utilities/icons.js";
 import { BoardFinder } from "./editor-finder.js";

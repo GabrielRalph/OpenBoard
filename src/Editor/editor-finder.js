@@ -1,6 +1,6 @@
 import { OBFileSystem, OBFStat } from "../FileTree/OBFileSystem.js";
 import { OBFinder } from "../FileTree/OBFinder.js";
-import { OBLoadBoard } from "../openboard.js";
+import { OBLoadBoard } from "../OpenBoard/openboard.js";
 import { ShadowElement } from "../Utilities/utils.js";
 
 export class BoardFinder extends ShadowElement {
